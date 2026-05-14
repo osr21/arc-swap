@@ -187,3 +187,11 @@ overrides:
   "crypto-browserify": "3.3.0"
   # sha.js: crypto-browserify@3.3.0 pulls in sha.js; pin to the patched 2.4.12 (latest).
   "sha.js": "2.4.12"
+
+# Inject missing peer/transitive deps into third-party packages that don't declare them.
+# @circle-fin/app-kit imports bn.js directly but doesn't list it in its own package.json;
+# the crypto-browserify pin above severed the transitive chain that previously provided it.
+packageExtensions:
+  "@circle-fin/app-kit@*":
+    dependencies:
+      bn.js: "^5.2.3"
