@@ -24,8 +24,9 @@ export function SwapPanel() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [swapResult, setSwapResult] = useState<{ success: boolean; transactionHash: string; explorerUrl: string } | null>(null);
 
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
   const { connect } = useConnect();
+  const isWrongNetwork = isConnected && chainId !== 5042002;
   const queryClient = useQueryClient();
   const estimateMutation = useEstimateSwap();
   const { executeSwap, isSwapping } = useKitSwap();
@@ -89,20 +90,33 @@ export function SwapPanel() {
         </Button>
       </div>
 
-      {/* Connect Wallet Gate */}
-      {!isConnected && (
-        <div className="mb-4 p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col items-center gap-3 text-center">
-          <Wallet className="w-6 h-6 text-primary/60" />
-          <div className="text-sm text-muted-foreground">Connect your wallet to swap tokens on Arc Testnet</div>
-          <Button
-            size="sm"
-            className="gap-2"
-            onClick={() => connect({ connector: injected() })}
-            data-testid="button-connect-wallet-swap"
-          >
-            <Wallet className="h-3.5 w-3.5" />
-            Connect Wallet
-          </Button>
+      {/* Connect Wallet / Wrong Network Gate */}
+      {(!isConnected || isWrongNetwork) && (
+        <div className={`mb-4 p-4 rounded-xl border flex flex-col items-center gap-3 text-center ${isWrongNetwork ? "border-amber-500/30 bg-amber-500/5" : "border-primary/20 bg-primary/5"}`}>
+          <Wallet className={`w-6 h-6 ${isWrongNetwork ? "text-amber-400/60" : "text-primary/60"}`} />
+          <div className="text-sm text-muted-foreground">
+            {isWrongNetwork
+              ? "Switch to Arc Testnet to swap tokens"
+              : "Connect your wallet to swap tokens on Arc Testnet"}
+          </div>
+          {isWrongNetwork ? (
+            <Button size="sm" variant="outline" className="gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10" onClick={async () => {
+              const p = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+              if (p) await p.request({ method: "wallet_addEthereumChain", params: [{ chainId: "0x4CAED2", chainName: "Arc Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: ["https://rpc.testnet.arc.network"], blockExplorerUrls: ["https://testnet.arcscan.app"] }] });
+            }}>
+              Switch to Arc Testnet
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="gap-2"
+              onClick={() => connect({ connector: injected() })}
+              data-testid="button-connect-wallet-swap"
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              Connect Wallet
+            </Button>
+          )}
         </div>
       )}
 

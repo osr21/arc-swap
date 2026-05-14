@@ -1,20 +1,46 @@
 import React from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { Button } from "@/components/ui/button";
-import { Wallet, LogOut, ChevronDown } from "lucide-react";
+import { Wallet, LogOut, ChevronDown, Plus, AlertTriangle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { shortenAddress } from "@/lib/format";
+import { arcTestnet } from "@/lib/arc-chain";
+
+const ARC_TESTNET_PARAMS = {
+  chainId: `0x${(5042002).toString(16)}`,
+  chainName: "Arc Testnet",
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: ["https://rpc.testnet.arc.network"],
+  blockExplorerUrls: ["https://testnet.arcscan.app"],
+};
+
+async function addArcTestnetToMetaMask() {
+  const provider = (window as Window & { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+  if (!provider) return;
+  try {
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [ARC_TESTNET_PARAMS],
+    });
+  } catch (e) {
+    console.error("Failed to add Arc Testnet:", e);
+  }
+}
 
 export function ConnectWallet() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+
+  const isWrongNetwork = isConnected && chainId !== arcTestnet.id;
 
   if (isConnected && address) {
     return (
@@ -23,14 +49,41 @@ export function ConnectWallet() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 font-mono border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+            className={
+              isWrongNetwork
+                ? "gap-2 font-mono border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                : "gap-2 font-mono border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+            }
           >
-            <Wallet className="h-3.5 w-3.5" />
-            {shortenAddress(address)}
+            {isWrongNetwork ? (
+              <AlertTriangle className="h-3.5 w-3.5" />
+            ) : (
+              <Wallet className="h-3.5 w-3.5" />
+            )}
+            {isWrongNetwork ? "Wrong Network" : shortenAddress(address)}
             <ChevronDown className="h-3 w-3 opacity-60" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-52">
+          {isWrongNetwork && (
+            <>
+              <DropdownMenuItem
+                onClick={() => switchChain({ chainId: arcTestnet.id })}
+                className="gap-2 text-sm"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                Switch to Arc Testnet
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={addArcTestnetToMetaMask}
+                className="gap-2 text-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Arc Testnet
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem
             onClick={() => disconnect()}
             className="text-destructive focus:text-destructive gap-2"
