@@ -235,7 +235,7 @@ export function SwapPanel() {
                     method: "wallet_addEthereumChain",
                     params: [
                       {
-                        chainId: "0x4CAED2",
+                        chainId: "0x4CEF52",
                         chainName: "Arc Testnet",
                         nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
                         rpcUrls: ["https://rpc.testnet.arc.network"],
