@@ -46,6 +46,8 @@ export interface SwapEstimate {
   tokenIn: string;
   tokenOut: string;
   amountIn: string;
+  /** Amount actually swapped after platform fee deduction */
+  effectiveAmountIn: string;
   estimatedAmountOut: string;
   exchangeRate: string;
   fee: string;

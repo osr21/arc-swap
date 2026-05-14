@@ -49,6 +49,10 @@ export function SwapPanel() {
       setErrorMsg("Please enter a valid amount");
       return;
     }
+    if (Number(amountIn) < 0.01) {
+      setErrorMsg("Minimum swap amount is 0.01");
+      return;
+    }
     setErrorMsg(null);
     setSwapResult(null);
     
@@ -198,18 +202,20 @@ export function SwapPanel() {
             <span>1 {tokenIn} = {formatAmount(estimate.exchangeRate, 6)} {tokenOut}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Network Fee</span>
-            <span>{estimate.fee} {tokenIn}</span>
-          </div>
-          <div className="flex justify-between border-t border-border/50 pt-2">
-            <span className="text-primary/80 flex items-center gap-1">
-              Platform Fee <span className="text-muted-foreground">(0.3%)</span>
-            </span>
+            <span className="text-muted-foreground">Platform Fee (0.3%)</span>
             <span className="text-primary">{formatAmount(estimate.platformFee, 6)} {tokenIn}</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Amount Swapped</span>
+            <span>{formatAmount(estimate.effectiveAmountIn ?? estimate.amountIn, 6)} {tokenIn}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Network Gas</span>
+            <span>{estimate.fee} {tokenIn}</span>
+          </div>
           <div className="flex justify-between border-t border-border/50 pt-2 font-semibold">
-            <span className="text-muted-foreground">You Pay Total</span>
-            <span>{formatAmount((parseFloat(estimate.amountIn) + parseFloat(estimate.fee)).toFixed(6), 6)} {tokenIn}</span>
+            <span className="text-muted-foreground">You Receive ≈</span>
+            <span className="text-primary">+{formatAmount(estimate.estimatedAmountOut, 6)} {tokenOut}</span>
           </div>
         </div>
       )}

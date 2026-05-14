@@ -172,6 +172,9 @@ components:
           type: string
         amountIn:
           type: string
+        effectiveAmountIn:
+          type: string
+          description: Amount actually swapped after platform fee deduction
         estimatedAmountOut:
           type: string
         exchangeRate:
@@ -188,6 +191,7 @@ components:
         - tokenIn
         - tokenOut
         - amountIn
+        - effectiveAmountIn
         - estimatedAmountOut
         - exchangeRate
         - fee

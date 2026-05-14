@@ -31,6 +31,9 @@ export const EstimateSwapResponse = zod.object({
   tokenIn: zod.string(),
   tokenOut: zod.string(),
   amountIn: zod.string(),
+  effectiveAmountIn: zod
+    .string()
+    .describe("Amount actually swapped after platform fee deduction"),
   estimatedAmountOut: zod.string(),
   exchangeRate: zod.string(),
   fee: zod.string(),

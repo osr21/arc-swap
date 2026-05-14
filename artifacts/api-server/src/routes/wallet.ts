@@ -20,13 +20,6 @@ const ERC20_ABI = [
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
-  {
-    name: "decimals",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
-  },
 ] as const;
 
 const TOKENS = [
@@ -40,31 +33,20 @@ const TOKENS = [
     address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`,
     decimals: 6,
   },
-  {
-    symbol: "cirBTC",
-    address: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-    decimals: 8,
-    native: false,
-    skip: true,
-  },
 ];
 
-function deriveAddress(privateKey: string): string {
-  try {
-    const { privateKeyToAccount } = require("viem/accounts");
-    const account = privateKeyToAccount(privateKey as `0x${string}`);
-    return account.address;
-  } catch {
-    return "0x0000000000000000000000000000000000000000";
-  }
-}
+const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
 
 router.get("/wallet/balances", async (req, res) => {
   let address: string;
 
   const queryAddress = req.query.address as string | undefined;
 
-  if (queryAddress && /^0x[0-9a-fA-F]{40}$/.test(queryAddress)) {
+  if (queryAddress) {
+    if (!ADDRESS_REGEX.test(queryAddress)) {
+      res.status(400).json({ error: "Invalid wallet address format" });
+      return;
+    }
     address = queryAddress;
   } else {
     const privateKey = process.env.WALLET_PRIVATE_KEY;
@@ -84,20 +66,19 @@ router.get("/wallet/balances", async (req, res) => {
   }
 
   try {
-
     const client = createPublicClient({
       chain: arcTestnet,
       transport: http("https://rpc.testnet.arc.network"),
     });
 
     const balances = await Promise.all(
-      TOKENS.filter((t) => !t.skip).map(async (token) => {
+      TOKENS.map(async (token) => {
         try {
           const raw = await client.readContract({
             address: token.address,
             abi: ERC20_ABI,
             functionName: "balanceOf",
-            args: [address],
+            args: [address as `0x${string}`],
           });
           const balance = formatUnits(raw as bigint, token.decimals);
           return { token: token.symbol, symbol: token.symbol, balance };
@@ -109,11 +90,7 @@ router.get("/wallet/balances", async (req, res) => {
 
     balances.push({ token: "cirBTC", symbol: "cirBTC", balance: "0.00" });
 
-    res.json({
-      address,
-      balances,
-      network: "Arc Testnet",
-    });
+    res.json({ address, balances, network: "Arc Testnet" });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     req.log.error({ err }, "Get wallet balances failed");

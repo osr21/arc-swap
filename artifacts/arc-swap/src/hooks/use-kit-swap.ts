@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createWalletClient, custom, parseUnits, createPublicClient, http } from "viem";
+import { createWalletClient, custom, parseUnits } from "viem";
 import { arcTestnet } from "@/lib/arc-chain";
 
 export interface KitSwapParams {
@@ -43,14 +43,18 @@ export function useKitSwap() {
 
     try {
       const configRes = await fetch("/api/config");
-      if (!configRes.ok) throw new Error("Failed to fetch kit configuration");
+      if (!configRes.ok) throw new Error("Failed to fetch configuration");
       const { kitKey, feeWalletAddress, platformFeeBps } = (await configRes.json()) as {
         kitKey: string;
         feeWalletAddress: string;
         platformFeeBps: number;
       };
 
-      const provider = (window as Window & { ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+      const provider = (
+        window as Window & {
+          ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
+        }
+      ).ethereum;
       if (!provider) {
         throw new Error("No wallet detected. Please install MetaMask and connect to Arc Testnet.");
       }
@@ -64,13 +68,13 @@ export function useKitSwap() {
       const userAddress = accounts[0];
       if (!userAddress) throw new Error("No account found. Please connect your wallet.");
 
-      const feeAmount = parseFloat(params.amountIn) * platformFeeBps / 10_000;
-      const effectiveAmountIn = (parseFloat(params.amountIn) - feeAmount).toFixed(6);
+      const parsedIn = parseFloat(params.amountIn);
+      const feeAmount = parsedIn * platformFeeBps / 10_000;
+      const effectiveAmountIn = (parsedIn - feeAmount).toFixed(6);
 
       const tokenInfo = TOKEN_INFO[params.tokenIn];
       if (tokenInfo && feeAmount > 0 && feeWalletAddress) {
         const feeRaw = parseUnits(feeAmount.toFixed(tokenInfo.decimals), tokenInfo.decimals);
-
         await walletClient.writeContract({
           address: tokenInfo.address,
           abi: ERC20_TRANSFER_ABI,

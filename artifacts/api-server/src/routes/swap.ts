@@ -1,10 +1,15 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
 import { PLATFORM_FEE_BPS, calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
 
 const router = Router();
 const kit = new AppKit();
+
+const VALID_TOKENS = new Set(["USDC", "EURC", "cirBTC"]);
+const MIN_SWAP_AMOUNT = 0.01;
+const MAX_SWAP_AMOUNT = 1_000_000;
 
 type Token = "USDC" | "EURC" | "cirBTC";
 
@@ -32,36 +37,84 @@ function getKitKey() {
   return key;
 }
 
-router.post("/swap/estimate", async (req, res) => {
+function validateSwapInput(
+  tokenIn: unknown,
+  tokenOut: unknown,
+  amountIn: unknown,
+): string | null {
+  if (!tokenIn || !tokenOut || !amountIn) {
+    return "tokenIn, tokenOut, and amountIn are required";
+  }
+  if (!VALID_TOKENS.has(tokenIn as string)) {
+    return `Invalid tokenIn. Supported tokens: ${[...VALID_TOKENS].join(", ")}`;
+  }
+  if (!VALID_TOKENS.has(tokenOut as string)) {
+    return `Invalid tokenOut. Supported tokens: ${[...VALID_TOKENS].join(", ")}`;
+  }
+  if (tokenIn === tokenOut) {
+    return "tokenIn and tokenOut must be different";
+  }
+  const parsed = parseFloat(amountIn as string);
+  if (isNaN(parsed) || !isFinite(parsed)) {
+    return "amountIn must be a valid number";
+  }
+  if (parsed <= 0) {
+    return "amountIn must be greater than 0";
+  }
+  if (parsed < MIN_SWAP_AMOUNT) {
+    return `Minimum swap amount is ${MIN_SWAP_AMOUNT}`;
+  }
+  if (parsed > MAX_SWAP_AMOUNT) {
+    return `Maximum swap amount is ${MAX_SWAP_AMOUNT.toLocaleString()}`;
+  }
+  return null;
+}
+
+const estimateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many quote requests — please wait a moment before retrying" },
+});
+
+const executeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many swap requests — please wait a minute before retrying" },
+});
+
+router.post("/swap/estimate", estimateLimiter, async (req, res) => {
   const { tokenIn, tokenOut, amountIn } = req.body as {
     tokenIn: Token;
     tokenOut: Token;
     amountIn: string;
   };
 
-  if (!tokenIn || !tokenOut || !amountIn) {
-    res.status(400).json({ error: "tokenIn, tokenOut, and amountIn are required" });
-    return;
-  }
-  if (tokenIn === tokenOut) {
-    res.status(400).json({ error: "tokenIn and tokenOut must be different" });
+  const validationError = validateSwapInput(tokenIn, tokenOut, amountIn);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
     return;
   }
 
   try {
+    const { platformFee, effectiveAmountIn } = calcPlatformFee(amountIn);
+    const platformFeeAddress = await getFeeWalletAddress();
+
     const adapter = getAdapter();
     const result = await kit.estimateSwap({
       from: { adapter, chain: "Arc_Testnet" },
       tokenIn,
       tokenOut,
-      amountIn,
+      amountIn: effectiveAmountIn,
       config: { kitKey: getKitKey() },
     });
 
     const r = result as {
       estimatedOutput?: { amount?: string; token?: string };
       fees?: Array<{ token?: string; amount?: string; type?: string }>;
-      stopLimit?: { amount?: string; token?: string };
     };
 
     const amountOut = r.estimatedOutput?.amount ?? "0";
@@ -74,13 +127,11 @@ router.post("/swap/estimate", async (req, res) => {
       .reduce((sum, f) => sum + parseFloat(f.amount ?? "0"), 0)
       .toFixed(6);
 
-    const { platformFee } = calcPlatformFee(amountIn);
-    const platformFeeAddress = await getFeeWalletAddress();
-
     res.json({
       tokenIn,
       tokenOut,
       amountIn,
+      effectiveAmountIn,
       estimatedAmountOut: amountOut,
       exchangeRate: rate,
       fee: totalFee,
@@ -94,19 +145,16 @@ router.post("/swap/estimate", async (req, res) => {
   }
 });
 
-router.post("/swap/execute", async (req, res) => {
+router.post("/swap/execute", executeLimiter, async (req, res) => {
   const { tokenIn, tokenOut, amountIn } = req.body as {
     tokenIn: Token;
     tokenOut: Token;
     amountIn: string;
   };
 
-  if (!tokenIn || !tokenOut || !amountIn) {
-    res.status(400).json({ error: "tokenIn, tokenOut, and amountIn are required" });
-    return;
-  }
-  if (tokenIn === tokenOut) {
-    res.status(400).json({ error: "tokenIn and tokenOut must be different" });
+  const validationError = validateSwapInput(tokenIn, tokenOut, amountIn);
+  if (validationError) {
+    res.status(400).json({ error: validationError });
     return;
   }
 
