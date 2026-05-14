@@ -166,8 +166,7 @@ router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res)
 
   try {
     const effectiveAmountIn = amountIn;
-    const platformFee = ((parseFloat(amountIn) * PLATFORM_FEE_BPS) / 10_000).toFixed(6);
-    req.log.info({ tokenIn, tokenOut, amountIn, platformFee, userAddress }, "Executing swap server-side");
+    req.log.info({ tokenIn, tokenOut, amountIn, userAddress }, "Executing swap server-side");
 
     const adapter = getAdapter();
     const result = await kit.swap({
@@ -192,10 +191,16 @@ router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res)
     const amountOut = r.amountOut ?? r.amount ?? "0";
     const priceImpact = calcPriceImpact(effectiveAmountIn, amountOut);
 
-    // Transfer output tokens to user's wallet (swap output lands in backend wallet first)
+    // Deduct platform fee from output — fee stays in backend wallet, user gets the rest
+    const amountOutNum = parseFloat(amountOut);
+    const feeFromOutput = (amountOutNum * PLATFORM_FEE_BPS) / 10_000;
+    const userReceives = Math.max(0, amountOutNum - feeFromOutput).toFixed(6);
+    const platformFee = feeFromOutput.toFixed(6);
+
+    // Transfer output tokens (minus fee) to user's wallet
     if (userAddress && isAddress(userAddress)) {
       const outputInfo = OUTPUT_TOKEN_INFO[tokenOut];
-      if (outputInfo && parseFloat(amountOut) > 0) {
+      if (outputInfo && parseFloat(userReceives) > 0) {
         const rawPrivateKey = process.env.WALLET_PRIVATE_KEY ?? "";
         const normalizedKey = rawPrivateKey.startsWith("0x") ? rawPrivateKey : `0x${rawPrivateKey}`;
         const account = privateKeyToAccount(normalizedKey as `0x${string}`);
@@ -205,14 +210,17 @@ router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res)
           account,
         });
 
-        const rawAmount = parseUnits(amountOut, outputInfo.decimals);
+        const rawAmount = parseUnits(userReceives, outputInfo.decimals);
         const transferHash = await walletClient.writeContract({
           address: outputInfo.address,
           abi: ERC20_TRANSFER_ABI,
           functionName: "transfer",
           args: [userAddress as `0x${string}`, rawAmount],
         });
-        req.log.info({ transferHash, userAddress, amountOut, tokenOut }, "Output tokens transferred to user");
+        req.log.info(
+          { transferHash, userAddress, userReceives, fee: platformFee, tokenOut },
+          "Output tokens (minus fee) transferred to user"
+        );
       }
     }
 
@@ -223,19 +231,19 @@ router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res)
         tokenIn,
         tokenOut,
         amountIn: effectiveAmountIn,
-        amountOut,
+        amountOut: userReceives,
         platformFee,
         priceImpact,
       }),
       db.insert(feeEarningsTable).values({
-        token: tokenIn,
+        token: tokenOut,
         feeAmount: platformFee,
         transactionHash: txHash,
         swapAmountIn: amountIn,
       }),
     ]);
 
-    res.json({ success: true, transactionHash: txHash, explorerUrl, amountOut });
+    res.json({ success: true, transactionHash: txHash, explorerUrl, amountOut: userReceives, fee: platformFee });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     req.log.error({ err }, "Execute swap failed");
