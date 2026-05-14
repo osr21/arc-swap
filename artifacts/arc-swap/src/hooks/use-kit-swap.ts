@@ -117,6 +117,11 @@ export function useKitSwap() {
         provider: provider as Parameters<typeof createViemAdapterFromProvider>[0]["provider"],
       });
 
+      const kitKey = import.meta.env.VITE_CIRCLE_KIT_KEY as string | undefined;
+      if (!kitKey) {
+        throw new Error("Circle Kit Key is not configured. Set VITE_CIRCLE_KIT_KEY in your environment.");
+      }
+
       const kit = new AppKit();
 
       const slippageBps = params.slippageBps ?? 50;
@@ -129,6 +134,7 @@ export function useKitSwap() {
             tokenOut: string;
             amountIn: string;
             slippageBps?: number;
+            config: { kitKey: string };
           }) => Promise<{
             txHash?: string;
             transactionHash?: string;
@@ -144,6 +150,7 @@ export function useKitSwap() {
         tokenOut: params.tokenOut,
         amountIn: params.amountIn,
         slippageBps,
+        config: { kitKey },
       });
 
       const txHash = result?.txHash ?? result?.transactionHash ?? result?.hash ?? "";
