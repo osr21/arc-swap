@@ -109,6 +109,7 @@ export function useKitSwap() {
           tokenIn: params.tokenIn,
           tokenOut: params.tokenOut,
           amountIn: params.amountIn,
+          userAddress,
         }),
       });
 

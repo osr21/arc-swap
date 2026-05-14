@@ -2,6 +2,8 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
+import { createWalletClient, http, parseUnits, isAddress } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { db, swapHistoryTable, feeEarningsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { PLATFORM_FEE_BPS, calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
@@ -10,6 +12,33 @@ import { requireSameOrigin } from "../middleware/require-same-origin";
 
 const router = Router();
 const kit = new AppKit();
+
+const arcTestnet = {
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.testnet.arc.network"] } },
+} as const;
+
+const ERC20_TRANSFER_ABI = [
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+const OUTPUT_TOKEN_INFO: Record<string, { address: `0x${string}`; decimals: number } | undefined> = {
+  USDC: { address: "0x3600000000000000000000000000000000000000", decimals: 6 },
+  EURC: { address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a", decimals: 6 },
+};
+
+const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
 
 const VALID_TOKENS = new Set(["USDC", "EURC", "cirBTC"]);
 const MIN_SWAP_AMOUNT = 0.01;
@@ -120,16 +149,25 @@ router.post("/swap/estimate", estimateLimiter, async (req, res) => {
 });
 
 router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res) => {
-  const { tokenIn, tokenOut, amountIn } = req.body as { tokenIn: Token; tokenOut: Token; amountIn: string };
+  const { tokenIn, tokenOut, amountIn, userAddress } = req.body as {
+    tokenIn: Token;
+    tokenOut: Token;
+    amountIn: string;
+    userAddress?: string;
+  };
 
   const validationError = validateSwapInput(tokenIn, tokenOut, amountIn);
   if (validationError) { res.status(400).json({ error: validationError }); return; }
 
+  if (userAddress && !ADDRESS_REGEX.test(userAddress)) {
+    res.status(400).json({ error: "Invalid userAddress format" });
+    return;
+  }
+
   try {
     const effectiveAmountIn = amountIn;
     const platformFee = ((parseFloat(amountIn) * PLATFORM_FEE_BPS) / 10_000).toFixed(6);
-    const feeWallet = await getFeeWalletAddress();
-    req.log.info({ tokenIn, tokenOut, amountIn, platformFee, feeWallet }, "Executing swap server-side");
+    req.log.info({ tokenIn, tokenOut, amountIn, platformFee, userAddress }, "Executing swap server-side");
 
     const adapter = getAdapter();
     const result = await kit.swap({
@@ -153,6 +191,30 @@ router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res)
     const explorerUrl = r.explorerUrl ?? `https://testnet.arcscan.app/tx/${txHash}`;
     const amountOut = r.amountOut ?? r.amount ?? "0";
     const priceImpact = calcPriceImpact(effectiveAmountIn, amountOut);
+
+    // Transfer output tokens to user's wallet (swap output lands in backend wallet first)
+    if (userAddress && isAddress(userAddress)) {
+      const outputInfo = OUTPUT_TOKEN_INFO[tokenOut];
+      if (outputInfo && parseFloat(amountOut) > 0) {
+        const rawPrivateKey = process.env.WALLET_PRIVATE_KEY ?? "";
+        const normalizedKey = rawPrivateKey.startsWith("0x") ? rawPrivateKey : `0x${rawPrivateKey}`;
+        const account = privateKeyToAccount(normalizedKey as `0x${string}`);
+        const walletClient = createWalletClient({
+          chain: arcTestnet,
+          transport: http("https://rpc.testnet.arc.network"),
+          account,
+        });
+
+        const rawAmount = parseUnits(amountOut, outputInfo.decimals);
+        const transferHash = await walletClient.writeContract({
+          address: outputInfo.address,
+          abi: ERC20_TRANSFER_ABI,
+          functionName: "transfer",
+          args: [userAddress as `0x${string}`, rawAmount],
+        });
+        req.log.info({ transferHash, userAddress, amountOut, tokenOut }, "Output tokens transferred to user");
+      }
+    }
 
     await Promise.all([
       db.insert(swapHistoryTable).values({
