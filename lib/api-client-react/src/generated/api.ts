@@ -24,7 +24,6 @@ import type {
   SwapEstimate,
   SwapHistory,
   SwapRequest,
-  SwapResult,
   WalletBalances,
 } from "./api.schemas";
 
@@ -198,93 +197,6 @@ export const useEstimateSwap = <
   TContext
 > => {
   return useMutation(getEstimateSwapMutationOptions(options));
-};
-
-/**
- * Execute a swap from one token to another on Arc Testnet
- * @summary Execute a token swap
- */
-export const getExecuteSwapUrl = () => {
-  return `/api/swap/execute`;
-};
-
-export const executeSwap = async (
-  swapRequest: SwapRequest,
-  options?: RequestInit,
-): Promise<SwapResult> => {
-  return customFetch<SwapResult>(getExecuteSwapUrl(), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(swapRequest),
-  });
-};
-
-export const getExecuteSwapMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof executeSwap>>,
-    TError,
-    { data: BodyType<SwapRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof executeSwap>>,
-  TError,
-  { data: BodyType<SwapRequest> },
-  TContext
-> => {
-  const mutationKey = ["executeSwap"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof executeSwap>>,
-    { data: BodyType<SwapRequest> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return executeSwap(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ExecuteSwapMutationResult = NonNullable<
-  Awaited<ReturnType<typeof executeSwap>>
->;
-export type ExecuteSwapMutationBody = BodyType<SwapRequest>;
-export type ExecuteSwapMutationError = ErrorType<ErrorResponse>;
-
-/**
- * @summary Execute a token swap
- */
-export const useExecuteSwap = <
-  TError = ErrorType<ErrorResponse>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof executeSwap>>,
-    TError,
-    { data: BodyType<SwapRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof executeSwap>>,
-  TError,
-  { data: BodyType<SwapRequest> },
-  TContext
-> => {
-  return useMutation(getExecuteSwapMutationOptions(options));
 };
 
 /**

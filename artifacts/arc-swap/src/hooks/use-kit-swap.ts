@@ -55,12 +55,6 @@ export function useKitSwap() {
     setError(null);
 
     try {
-      const configRes = await fetch("/api/config");
-      if (!configRes.ok) throw new Error("Failed to fetch configuration");
-      const config = (await configRes.json()) as { kitKey?: string };
-      const kitKey = config.kitKey;
-      if (!kitKey) throw new Error("App configuration is unavailable. Please try again later.");
-
       const provider = (
         window as Window & {
           ethereum?: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
@@ -135,7 +129,6 @@ export function useKitSwap() {
             tokenOut: string;
             amountIn: string;
             slippageBps?: number;
-            config: { kitKey: string };
           }) => Promise<{
             txHash?: string;
             transactionHash?: string;
@@ -151,7 +144,6 @@ export function useKitSwap() {
         tokenOut: params.tokenOut,
         amountIn: params.amountIn,
         slippageBps,
-        config: { kitKey },
       });
 
       const txHash = result?.txHash ?? result?.transactionHash ?? result?.hash ?? "";

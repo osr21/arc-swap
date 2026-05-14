@@ -24,33 +24,26 @@ router.get("/config", async (req, res) => {
     (devDomain && host.includes(devDomain));
 
   const originAllowed =
-    !origin ||
     isSameHost ||
-    allowedOrigins.has(origin) ||
+    (!!origin && (allowedOrigins.has(origin) ||
     (devDomain && origin.includes(devDomain)) ||
-    replitDomains.some((d) => origin.includes(d));
+    replitDomains.some((d) => origin.includes(d))));
 
   const refererAllowed =
-    !referer ||
-    (devDomain && referer.includes(devDomain)) ||
+    !!referer &&
+    ((devDomain && referer.includes(devDomain)) ||
     replitDomains.some((d) => referer.includes(d)) ||
     referer.startsWith("http://localhost") ||
-    referer.startsWith("http://127.0.0.1");
+    referer.startsWith("http://127.0.0.1"));
 
   if (!originAllowed && !refererAllowed) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
 
-  const kitKey = process.env.CIRCLE_KIT_KEY;
-  if (!kitKey) {
-    res.status(500).json({ error: "CIRCLE_KIT_KEY not configured" });
-    return;
-  }
-
   try {
     const feeWalletAddress = await getFeeWalletAddress();
-    res.json({ kitKey, feeWalletAddress, platformFeeBps: PLATFORM_FEE_BPS });
+    res.json({ feeWalletAddress, platformFeeBps: PLATFORM_FEE_BPS });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: "Failed to get fee config", details: msg });

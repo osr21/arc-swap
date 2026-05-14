@@ -47,29 +47,6 @@ export const EstimateSwapResponse = zod.object({
 });
 
 /**
- * Execute a swap from one token to another on Arc Testnet
- * @summary Execute a token swap
- */
-export const ExecuteSwapBody = zod.object({
-  tokenIn: zod.enum(["USDC", "EURC", "cirBTC"]).describe("Token to swap from"),
-  tokenOut: zod.enum(["USDC", "EURC", "cirBTC"]).describe("Token to swap to"),
-  amountIn: zod
-    .string()
-    .describe('Human-readable amount to swap (e.g. \"1.00\")'),
-});
-
-export const ExecuteSwapResponse = zod.object({
-  success: zod.boolean(),
-  transactionHash: zod.string(),
-  explorerUrl: zod.string(),
-  tokenIn: zod.string(),
-  tokenOut: zod.string(),
-  amountIn: zod.string(),
-  amountOut: zod.string(),
-  timestamp: zod.string(),
-});
-
-/**
  * Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
  * @summary Get wallet token balances
  */

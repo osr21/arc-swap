@@ -63,38 +63,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /swap/execute:
-    post:
-      operationId: executeSwap
-      tags: [swap]
-      summary: Execute a token swap
-      description: Execute a swap from one token to another on Arc Testnet
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SwapRequest"
-      responses:
-        "200":
-          description: Swap result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SwapResult"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Swap failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /wallet/balances:
     get:
       operationId: getWalletBalances
