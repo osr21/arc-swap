@@ -1,6 +1,6 @@
 import React from "react";
 import { useAccount } from "wagmi";
-import { useGetWalletBalances } from "@workspace/api-client-react";
+import { useGetWalletBalances, getGetWalletBalancesQueryKey } from "@workspace/api-client-react";
 import { shortenAddress, formatAmount } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, Activity } from "lucide-react";
@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 
 export function WalletBalances() {
   const { address: connectedAddress } = useAccount();
+  const params = { address: connectedAddress ?? "" };
   const { data: walletData, isLoading, isError } = useGetWalletBalances(
-    connectedAddress ? { address: connectedAddress } : {}
+    params,
+    { query: { queryKey: getGetWalletBalancesQueryKey(params), enabled: !!connectedAddress } }
   );
-
-  const displayAddress = connectedAddress || walletData?.address;
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,8 +27,8 @@ export function WalletBalances() {
             </div>
             {isLoading ? (
               <Skeleton className="h-5 w-24 mt-1" />
-            ) : displayAddress ? (
-              <div className="font-mono text-sm" data-testid="text-wallet-address">{shortenAddress(displayAddress)}</div>
+            ) : connectedAddress ? (
+              <div className="font-mono text-sm" data-testid="text-wallet-address">{shortenAddress(connectedAddress)}</div>
             ) : (
               <div className="text-sm text-muted-foreground">Not Connected</div>
             )}
@@ -48,7 +48,11 @@ export function WalletBalances() {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        {isLoading ? (
+        {!connectedAddress ? (
+          <div className="col-span-3 text-sm text-muted-foreground text-center py-4">
+            Connect your wallet to view balances
+          </div>
+        ) : isLoading ? (
           <>
             <Skeleton className="h-20 w-full rounded-xl" />
             <Skeleton className="h-20 w-full rounded-xl" />
@@ -67,11 +71,7 @@ export function WalletBalances() {
           <div className="col-span-3 text-sm text-muted-foreground text-center py-4">
             Failed to load balances
           </div>
-        ) : (
-          <div className="col-span-3 text-sm text-muted-foreground text-center py-4 col-span-3">
-            Connect your wallet to view balances
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

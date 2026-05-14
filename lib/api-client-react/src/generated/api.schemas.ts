@@ -115,5 +115,5 @@ export type GetWalletBalancesParams = {
   /**
    * EVM wallet address to fetch balances for (0x...)
    */
-  address?: string;
+  address: string;
 };

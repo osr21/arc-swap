@@ -68,11 +68,11 @@ paths:
       operationId: getWalletBalances
       tags: [wallet]
       summary: Get wallet token balances
-      description: Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
+      description: Returns USDC, EURC, and cirBTC balances for the given wallet address.
       parameters:
         - name: address
           in: query
-          required: false
+          required: true
           schema:
             type: string
           description: EVM wallet address to fetch balances for (0x...)
@@ -95,7 +95,11 @@ paths:
       operationId: getSwapHistory
       tags: [swap]
       summary: Get recent swap history
-      description: Returns the list of recent swaps executed
+      description: >
+        Returns the 50 most recent swaps. Requires a valid
+        ADMIN_API_KEY bearer token.
+      security:
+        - adminApiKey: []
       responses:
         "200":
           description: Swap history
@@ -103,13 +107,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SwapHistory"
+        "403":
+          description: Forbidden — missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /fees:
     get:
       operationId: getFeeEarnings
       tags: [fees]
       summary: Get platform fee earnings
-      description: Returns accumulated platform fee totals and recent fee events
+      description: >
+        Returns accumulated platform fee totals and recent fee events.
+        Requires a valid ADMIN_API_KEY bearer token.
+      security:
+        - adminApiKey: []
       responses:
         "200":
           description: Fee earnings
@@ -117,8 +131,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeeEarnings"
+        "403":
+          description: Forbidden — missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  securitySchemes:
+    adminApiKey:
+      type: http
+      scheme: bearer
+      description: >
+        Bearer token for admin-only endpoints. Set the ADMIN_API_KEY
+        environment variable on the server and pass its value as the bearer token.
+
   schemas:
     HealthStatus:
       type: object

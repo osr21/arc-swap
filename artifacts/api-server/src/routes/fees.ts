@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db, feeEarningsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
+import { requireApiKey } from "../middleware/require-api-key";
 
 const router = Router();
 
-router.get("/fees", async (req, res) => {
+router.get("/fees", requireApiKey, async (req, res) => {
   try {
     const rows = await db
       .select()

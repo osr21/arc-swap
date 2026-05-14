@@ -38,32 +38,19 @@ const TOKENS = [
 const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
 
 router.get("/wallet/balances", async (req, res) => {
-  let address: string;
-
   const queryAddress = req.query.address as string | undefined;
 
-  if (queryAddress) {
-    if (!ADDRESS_REGEX.test(queryAddress)) {
-      res.status(400).json({ error: "Invalid wallet address format" });
-      return;
-    }
-    address = queryAddress;
-  } else {
-    const privateKey = process.env.WALLET_PRIVATE_KEY;
-    if (!privateKey) {
-      res.status(500).json({ error: "WALLET_PRIVATE_KEY not configured" });
-      return;
-    }
-    try {
-      const { privateKeyToAccount } = await import("viem/accounts");
-      const normalizedKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
-      const account = privateKeyToAccount(normalizedKey as `0x${string}`);
-      address = account.address;
-    } catch {
-      res.status(500).json({ error: "Invalid WALLET_PRIVATE_KEY" });
-      return;
-    }
+  if (!queryAddress) {
+    res.status(400).json({ error: "address query parameter is required" });
+    return;
   }
+
+  if (!ADDRESS_REGEX.test(queryAddress)) {
+    res.status(400).json({ error: "Invalid wallet address format" });
+    return;
+  }
+
+  const address = queryAddress;
 
   try {
     const client = createPublicClient({

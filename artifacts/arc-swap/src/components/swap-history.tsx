@@ -1,12 +1,20 @@
 import React from "react";
-import { useGetSwapHistory } from "@workspace/api-client-react";
+import { useAccount } from "wagmi";
+import { useGetSwapHistory, getGetSwapHistoryQueryKey } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatAmount, formatDate } from "@/lib/format";
 import { ExternalLink } from "lucide-react";
 
 export function SwapHistory() {
-  const { data: historyData, isLoading } = useGetSwapHistory();
+  const { isConnected } = useAccount();
+  const { data: historyData, isLoading } = useGetSwapHistory(
+    { query: { queryKey: getGetSwapHistoryQueryKey(), enabled: isConnected } }
+  );
+
+  if (!isConnected) {
+    return null;
+  }
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 shadow-xl overflow-hidden flex flex-col">

@@ -5,6 +5,7 @@ import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
 import { db, swapHistoryTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
+import { requireApiKey } from "../middleware/require-api-key";
 
 const router = Router();
 const kit = new AppKit();
@@ -109,7 +110,7 @@ router.post("/swap/estimate", estimateLimiter, async (req, res) => {
   }
 });
 
-router.get("/swap/history", async (req, res) => {
+router.get("/swap/history", requireApiKey, async (req, res) => {
   try {
     const rows = await db
       .select()

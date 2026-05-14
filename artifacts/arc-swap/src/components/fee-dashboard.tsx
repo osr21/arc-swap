@@ -1,13 +1,19 @@
 import React from "react";
+import { useAccount } from "wagmi";
 import { useGetFeeEarnings, getGetFeeEarningsQueryKey } from "@workspace/api-client-react";
 import { TrendingUp, RefreshCw, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatAmount, formatDate } from "@/lib/format";
 
 export function FeeDashboard() {
-  const { data, isLoading, isError, refetch, isFetching } = useGetFeeEarnings({
-    query: { queryKey: getGetFeeEarningsQueryKey(), refetchInterval: 30_000 },
-  });
+  const { isConnected } = useAccount();
+  const { data, isLoading, isError, refetch, isFetching } = useGetFeeEarnings(
+    { query: { queryKey: getGetFeeEarningsQueryKey(), refetchInterval: 30_000, enabled: isConnected } }
+  );
+
+  if (!isConnected) {
+    return null;
+  }
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4 shadow-lg">
@@ -45,7 +51,6 @@ export function FeeDashboard() {
 
       {data && (
         <>
-          {/* Totals */}
           {data.totals.length === 0 ? (
             <div className="text-center py-4 text-xs text-muted-foreground">
               No fees collected yet
@@ -71,7 +76,6 @@ export function FeeDashboard() {
             </div>
           )}
 
-          {/* Recent Fee Events */}
           {data.recent.length > 0 && (
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">

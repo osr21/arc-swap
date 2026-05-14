@@ -200,10 +200,10 @@ export const useEstimateSwap = <
 };
 
 /**
- * Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
+ * Returns USDC, EURC, and cirBTC balances for the given wallet address.
  * @summary Get wallet token balances
  */
-export const getGetWalletBalancesUrl = (params?: GetWalletBalancesParams) => {
+export const getGetWalletBalancesUrl = (params: GetWalletBalancesParams) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -220,7 +220,7 @@ export const getGetWalletBalancesUrl = (params?: GetWalletBalancesParams) => {
 };
 
 export const getWalletBalances = async (
-  params?: GetWalletBalancesParams,
+  params: GetWalletBalancesParams,
   options?: RequestInit,
 ): Promise<WalletBalances> => {
   return customFetch<WalletBalances>(getGetWalletBalancesUrl(params), {
@@ -239,7 +239,7 @@ export const getGetWalletBalancesQueryOptions = <
   TData = Awaited<ReturnType<typeof getWalletBalances>>,
   TError = ErrorType<ErrorResponse>,
 >(
-  params?: GetWalletBalancesParams,
+  params: GetWalletBalancesParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getWalletBalances>>,
@@ -278,7 +278,7 @@ export function useGetWalletBalances<
   TData = Awaited<ReturnType<typeof getWalletBalances>>,
   TError = ErrorType<ErrorResponse>,
 >(
-  params?: GetWalletBalancesParams,
+  params: GetWalletBalancesParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getWalletBalances>>,
@@ -298,7 +298,8 @@ export function useGetWalletBalances<
 }
 
 /**
- * Returns the list of recent swaps executed
+ * Returns the 50 most recent swaps. Requires a valid ADMIN_API_KEY bearer token.
+
  * @summary Get recent swap history
  */
 export const getGetSwapHistoryUrl = () => {
@@ -320,7 +321,7 @@ export const getGetSwapHistoryQueryKey = () => {
 
 export const getGetSwapHistoryQueryOptions = <
   TData = Awaited<ReturnType<typeof getSwapHistory>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof getSwapHistory>>,
@@ -347,7 +348,7 @@ export const getGetSwapHistoryQueryOptions = <
 export type GetSwapHistoryQueryResult = NonNullable<
   Awaited<ReturnType<typeof getSwapHistory>>
 >;
-export type GetSwapHistoryQueryError = ErrorType<unknown>;
+export type GetSwapHistoryQueryError = ErrorType<ErrorResponse>;
 
 /**
  * @summary Get recent swap history
@@ -355,7 +356,7 @@ export type GetSwapHistoryQueryError = ErrorType<unknown>;
 
 export function useGetSwapHistory<
   TData = Awaited<ReturnType<typeof getSwapHistory>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof getSwapHistory>>,
@@ -374,7 +375,8 @@ export function useGetSwapHistory<
 }
 
 /**
- * Returns accumulated platform fee totals and recent fee events
+ * Returns accumulated platform fee totals and recent fee events. Requires a valid ADMIN_API_KEY bearer token.
+
  * @summary Get platform fee earnings
  */
 export const getGetFeeEarningsUrl = () => {
@@ -396,7 +398,7 @@ export const getGetFeeEarningsQueryKey = () => {
 
 export const getGetFeeEarningsQueryOptions = <
   TData = Awaited<ReturnType<typeof getFeeEarnings>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof getFeeEarnings>>,
@@ -423,7 +425,7 @@ export const getGetFeeEarningsQueryOptions = <
 export type GetFeeEarningsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getFeeEarnings>>
 >;
-export type GetFeeEarningsQueryError = ErrorType<unknown>;
+export type GetFeeEarningsQueryError = ErrorType<ErrorResponse>;
 
 /**
  * @summary Get platform fee earnings
@@ -431,7 +433,7 @@ export type GetFeeEarningsQueryError = ErrorType<unknown>;
 
 export function useGetFeeEarnings<
   TData = Awaited<ReturnType<typeof getFeeEarnings>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<
     Awaited<ReturnType<typeof getFeeEarnings>>,

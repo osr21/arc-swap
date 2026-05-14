@@ -47,13 +47,12 @@ export const EstimateSwapResponse = zod.object({
 });
 
 /**
- * Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
+ * Returns USDC, EURC, and cirBTC balances for the given wallet address.
  * @summary Get wallet token balances
  */
 export const GetWalletBalancesQueryParams = zod.object({
   address: zod.coerce
     .string()
-    .optional()
     .describe("EVM wallet address to fetch balances for (0x...)"),
 });
 
@@ -70,7 +69,8 @@ export const GetWalletBalancesResponse = zod.object({
 });
 
 /**
- * Returns the list of recent swaps executed
+ * Returns the 50 most recent swaps. Requires a valid ADMIN_API_KEY bearer token.
+
  * @summary Get recent swap history
  */
 export const GetSwapHistoryResponse = zod.object({
@@ -89,7 +89,8 @@ export const GetSwapHistoryResponse = zod.object({
 });
 
 /**
- * Returns accumulated platform fee totals and recent fee events
+ * Returns accumulated platform fee totals and recent fee events. Requires a valid ADMIN_API_KEY bearer token.
+
  * @summary Get platform fee earnings
  */
 export const GetFeeEarningsResponse = zod.object({
