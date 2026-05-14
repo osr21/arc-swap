@@ -117,10 +117,11 @@ export function useKitSwap() {
         provider: provider as Parameters<typeof createViemAdapterFromProvider>[0]["provider"],
       });
 
-      const kitKey = import.meta.env.VITE_CIRCLE_KIT_KEY as string | undefined;
-      if (!kitKey) {
+      const rawKitKey = import.meta.env.VITE_CIRCLE_KIT_KEY as string | undefined;
+      if (!rawKitKey) {
         throw new Error("Circle Kit Key is not configured. Set VITE_CIRCLE_KIT_KEY in your environment.");
       }
+      const kitKey = rawKitKey.startsWith("KIT_KEY:") ? rawKitKey : `KIT_KEY:${rawKitKey}`;
 
       const kit = new AppKit();
 

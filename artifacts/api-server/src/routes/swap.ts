@@ -26,7 +26,7 @@ function getAdapter() {
 function getKitKey() {
   const key = process.env.CIRCLE_KIT_KEY;
   if (!key) throw new Error("CIRCLE_KIT_KEY not configured");
-  return key;
+  return key.startsWith("KIT_KEY:") ? key : `KIT_KEY:${key}`;
 }
 
 function validateSwapInput(tokenIn: unknown, tokenOut: unknown, amountIn: unknown): string | null {
