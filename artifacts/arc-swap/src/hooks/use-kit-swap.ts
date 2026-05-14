@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { createWalletClient, custom, parseUnits, isAddress } from "viem";
+import {
+  createWalletClient,
+  createPublicClient,
+  custom,
+  http,
+  parseUnits,
+  isAddress,
+} from "viem";
 import { arcTestnet } from "@/lib/arc-chain";
 
 export interface KitSwapParams {
@@ -14,23 +21,23 @@ export interface KitSwapResult {
   transactionHash: string;
   explorerUrl: string;
   amountOut: string;
+  fee: string;
 }
 
 const ALLOWED_EXPLORER_ORIGIN = "https://testnet.arcscan.app";
-
 const BACKEND_WALLET = "0xf4a14B84108885AF2f18843DD18761706e47d5F6" as `0x${string}`;
 
 if (!isAddress(BACKEND_WALLET)) {
   throw new Error(`Invalid hardcoded BACKEND_WALLET: ${BACKEND_WALLET}`);
 }
 
-const ERC20_ABI = [
+const APPROVE_ABI = [
   {
-    name: "transfer",
+    name: "approve",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "to", type: "address" },
+      { name: "spender", type: "address" },
       { name: "amount", type: "uint256" },
     ],
     outputs: [{ name: "", type: "bool" }],
@@ -75,6 +82,11 @@ export function useKitSwap() {
         transport: custom(provider),
       });
 
+      const publicClient = createPublicClient({
+        chain: arcTestnet,
+        transport: http("https://rpc.testnet.arc.network"),
+      });
+
       const accounts = await walletClient.getAddresses();
       const userAddress = accounts[0];
       if (!userAddress) throw new Error("No account found. Please connect your wallet.");
@@ -85,19 +97,24 @@ export function useKitSwap() {
       const tokenInfo = TOKEN_INFO[params.tokenIn];
 
       if (tokenInfo) {
-        // Transfer the full swap amount from user → backend wallet.
-        // The backend executes the swap using these tokens and returns the output.
         const amountRaw = parseUnits(params.amountIn, tokenInfo.decimals);
 
-        await walletClient.writeContract({
+        // Step 1: User approves the backend wallet to spend their tokens.
+        // This is the standard DeFi pattern — the user signs once in MetaMask,
+        // then the backend calls transferFrom to pull exactly that amount.
+        const approveHash = await walletClient.writeContract({
           address: tokenInfo.address,
-          abi: ERC20_ABI,
-          functionName: "transfer",
+          abi: APPROVE_ABI,
+          functionName: "approve",
           args: [BACKEND_WALLET, amountRaw],
           account: userAddress,
         });
+
+        // Wait for the approval to be confirmed on-chain before proceeding.
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }
 
+      // Step 2: Tell the backend to pull the tokens and execute the swap.
       const res = await fetch("/api/swap/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -114,6 +131,7 @@ export function useKitSwap() {
         transactionHash?: string;
         explorerUrl?: string;
         amountOut?: string;
+        fee?: string;
         error?: string;
         details?: string;
       };
@@ -125,9 +143,14 @@ export function useKitSwap() {
       const txHash = data.transactionHash ?? "";
       const rawUrl = data.explorerUrl ?? `${ALLOWED_EXPLORER_ORIGIN}/tx/${txHash}`;
       const explorerUrl = safeSanitizeExplorerUrl(rawUrl, txHash);
-      const amountOut = data.amountOut ?? "0";
 
-      return { success: true, transactionHash: txHash, explorerUrl, amountOut };
+      return {
+        success: true,
+        transactionHash: txHash,
+        explorerUrl,
+        amountOut: data.amountOut ?? "0",
+        fee: data.fee ?? "0",
+      };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
