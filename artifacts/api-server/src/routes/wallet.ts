@@ -60,17 +60,30 @@ function deriveAddress(privateKey: string): string {
 }
 
 router.get("/wallet/balances", async (req, res) => {
-  const privateKey = process.env.WALLET_PRIVATE_KEY;
-  if (!privateKey) {
-    res.status(500).json({ error: "WALLET_PRIVATE_KEY not configured" });
-    return;
+  let address: string;
+
+  const queryAddress = req.query.address as string | undefined;
+
+  if (queryAddress && /^0x[0-9a-fA-F]{40}$/.test(queryAddress)) {
+    address = queryAddress;
+  } else {
+    const privateKey = process.env.WALLET_PRIVATE_KEY;
+    if (!privateKey) {
+      res.status(500).json({ error: "WALLET_PRIVATE_KEY not configured" });
+      return;
+    }
+    try {
+      const { privateKeyToAccount } = await import("viem/accounts");
+      const normalizedKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
+      const account = privateKeyToAccount(normalizedKey as `0x${string}`);
+      address = account.address;
+    } catch {
+      res.status(500).json({ error: "Invalid WALLET_PRIVATE_KEY" });
+      return;
+    }
   }
 
   try {
-    const { privateKeyToAccount } = await import("viem/accounts");
-    const normalizedKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
-    const account = privateKeyToAccount(normalizedKey as `0x${string}`);
-    const address = account.address;
 
     const client = createPublicClient({
       chain: arcTestnet,

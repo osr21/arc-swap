@@ -1,4 +1,5 @@
 import React from "react";
+import { useAccount } from "wagmi";
 import { useGetWalletBalances } from "@workspace/api-client-react";
 import { shortenAddress, formatAmount } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,7 +7,12 @@ import { Wallet, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export function WalletBalances() {
-  const { data: walletData, isLoading, isError } = useGetWalletBalances();
+  const { address: connectedAddress } = useAccount();
+  const { data: walletData, isLoading, isError } = useGetWalletBalances(
+    connectedAddress ? { address: connectedAddress } : {}
+  );
+
+  const displayAddress = connectedAddress || walletData?.address;
 
   return (
     <div className="flex flex-col gap-6">
@@ -16,13 +22,15 @@ export function WalletBalances() {
             <Wallet className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Wallet</div>
+            <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+              {connectedAddress ? "Connected Wallet" : "Wallet"}
+            </div>
             {isLoading ? (
               <Skeleton className="h-5 w-24 mt-1" />
-            ) : walletData ? (
-              <div className="font-mono text-sm" data-testid="text-wallet-address">{shortenAddress(walletData.address)}</div>
+            ) : displayAddress ? (
+              <div className="font-mono text-sm" data-testid="text-wallet-address">{shortenAddress(displayAddress)}</div>
             ) : (
-              <div className="text-sm">Not Connected</div>
+              <div className="text-sm text-muted-foreground">Not Connected</div>
             )}
           </div>
         </div>
@@ -55,9 +63,13 @@ export function WalletBalances() {
               </div>
             </div>
           ))
-        ) : (
+        ) : isError ? (
           <div className="col-span-3 text-sm text-muted-foreground text-center py-4">
             Failed to load balances
+          </div>
+        ) : (
+          <div className="col-span-3 text-sm text-muted-foreground text-center py-4 col-span-3">
+            Connect your wallet to view balances
           </div>
         )}
       </div>

@@ -60,9 +60,16 @@ export const ExecuteSwapResponse = zod.object({
 });
 
 /**
- * Returns USDC, EURC, and cirBTC balances for the configured wallet on Arc Testnet
+ * Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
  * @summary Get wallet token balances
  */
+export const GetWalletBalancesQueryParams = zod.object({
+  address: zod.coerce
+    .string()
+    .optional()
+    .describe("EVM wallet address to fetch balances for (0x...)"),
+});
+
 export const GetWalletBalancesResponse = zod.object({
   address: zod.string(),
   balances: zod.array(

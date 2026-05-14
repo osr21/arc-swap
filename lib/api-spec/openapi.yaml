@@ -98,7 +98,14 @@ paths:
       operationId: getWalletBalances
       tags: [wallet]
       summary: Get wallet token balances
-      description: Returns USDC, EURC, and cirBTC balances for the configured wallet on Arc Testnet
+      description: Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
+      parameters:
+        - name: address
+          in: query
+          required: false
+          schema:
+            type: string
+          description: EVM wallet address to fetch balances for (0x...)
       responses:
         "200":
           description: Wallet balances

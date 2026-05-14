@@ -1,7 +1,8 @@
 import React, { useState } from "react";
+import { useAccount, useConnect } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { 
   useEstimateSwap, 
-  useExecuteSwap, 
   getGetWalletBalancesQueryKey, 
   getGetSwapHistoryQueryKey 
 } from "@workspace/api-client-react";
@@ -9,8 +10,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDownUp, RefreshCw, Loader2, AlertCircle } from "lucide-react";
+import { ArrowDownUp, RefreshCw, Loader2, AlertCircle, Wallet } from "lucide-react";
 import { formatAmount } from "@/lib/format";
+import { useKitSwap } from "@/hooks/use-kit-swap";
 
 const TOKENS = ["USDC", "EURC", "cirBTC"] as const;
 type Token = typeof TOKENS[number];
@@ -20,18 +22,25 @@ export function SwapPanel() {
   const [tokenOut, setTokenOut] = useState<Token>("EURC");
   const [amountIn, setAmountIn] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+  const [swapResult, setSwapResult] = useState<{ success: boolean; transactionHash: string; explorerUrl: string } | null>(null);
+
+  const { isConnected } = useAccount();
+  const { connect } = useConnect();
   const queryClient = useQueryClient();
   const estimateMutation = useEstimateSwap();
-  const executeMutation = useExecuteSwap();
+  const { executeSwap, isSwapping } = useKitSwap();
+
+  const resetState = () => {
+    setAmountIn("");
+    estimateMutation.reset();
+    setErrorMsg(null);
+    setSwapResult(null);
+  };
 
   const handleSwapDirection = () => {
     setTokenIn(tokenOut);
     setTokenOut(tokenIn);
-    setAmountIn("");
-    estimateMutation.reset();
-    executeMutation.reset();
-    setErrorMsg(null);
+    resetState();
   };
 
   const handleGetQuote = () => {
@@ -40,55 +49,62 @@ export function SwapPanel() {
       return;
     }
     setErrorMsg(null);
-    executeMutation.reset();
+    setSwapResult(null);
     
     estimateMutation.mutate({
-      data: {
-        tokenIn,
-        tokenOut,
-        amountIn
-      }
+      data: { tokenIn, tokenOut, amountIn }
     }, {
-      onError: (err: any) => {
-        setErrorMsg(err.error || err.message || "Failed to get quote");
+      onError: (err: unknown) => {
+        const e = err as { error?: string; message?: string };
+        setErrorMsg(e.error || e.message || "Failed to get quote");
       }
     });
   };
 
-  const handleExecuteSwap = () => {
+  const handleExecuteSwap = async () => {
     setErrorMsg(null);
-    executeMutation.mutate({
-      data: {
-        tokenIn,
-        tokenOut,
-        amountIn
-      }
-    }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetWalletBalancesQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetSwapHistoryQueryKey() });
-        setAmountIn("");
-        estimateMutation.reset();
-      },
-      onError: (err: any) => {
-        setErrorMsg(err.error || err.message || "Failed to execute swap");
-      }
-    });
+    try {
+      const result = await executeSwap({ tokenIn, tokenOut, amountIn });
+      setSwapResult(result);
+      queryClient.invalidateQueries({ queryKey: getGetWalletBalancesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetSwapHistoryQueryKey() });
+      setAmountIn("");
+      estimateMutation.reset();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      setErrorMsg(e.message || "Swap failed");
+    }
   };
 
   const isEstimating = estimateMutation.isPending;
-  const isExecuting = executeMutation.isPending;
+  const isExecuting = isSwapping;
   const estimate = estimateMutation.data;
-  const result = executeMutation.data;
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4 shadow-xl">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold tracking-tight">Swap</h2>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setAmountIn(""); estimateMutation.reset(); executeMutation.reset(); setErrorMsg(null); }}>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={resetState}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Connect Wallet Gate */}
+      {!isConnected && (
+        <div className="mb-4 p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col items-center gap-3 text-center">
+          <Wallet className="w-6 h-6 text-primary/60" />
+          <div className="text-sm text-muted-foreground">Connect your wallet to swap tokens on Arc Testnet</div>
+          <Button
+            size="sm"
+            className="gap-2"
+            onClick={() => connect({ connector: injected() })}
+            data-testid="button-connect-wallet-swap"
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            Connect Wallet
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-2">
         {/* Token In */}
@@ -102,7 +118,7 @@ export function SwapPanel() {
               onChange={(e) => {
                 setAmountIn(e.target.value);
                 estimateMutation.reset();
-                executeMutation.reset();
+                setSwapResult(null);
               }}
               className="border-0 bg-transparent text-2xl p-0 h-auto font-mono focus-visible:ring-0 shadow-none"
               data-testid="input-amount-in"
@@ -183,12 +199,12 @@ export function SwapPanel() {
       )}
 
       {/* Success */}
-      {result && result.success && (
+      {swapResult && swapResult.success && (
         <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-primary text-sm flex flex-col gap-1" data-testid="text-success-message">
           <div className="font-medium">Swap Successful</div>
           <div className="text-xs opacity-80 break-all">
-            <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1" data-testid="link-explorer">
-              View on Explorer: {result.transactionHash.slice(0, 10)}...{result.transactionHash.slice(-8)}
+            <a href={swapResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1" data-testid="link-explorer">
+              View on Explorer: {swapResult.transactionHash.slice(0, 10)}...{swapResult.transactionHash.slice(-8)}
             </a>
           </div>
         </div>
@@ -196,7 +212,16 @@ export function SwapPanel() {
 
       {/* Action Button */}
       <div className="mt-4">
-        {!estimate ? (
+        {!isConnected ? (
+          <Button
+            className="w-full h-12 text-base font-semibold"
+            size="lg"
+            onClick={() => connect({ connector: injected() })}
+          >
+            <Wallet className="w-5 h-5 mr-2" />
+            Connect Wallet to Swap
+          </Button>
+        ) : !estimate ? (
           <Button 
             className="w-full h-12 text-base font-semibold" 
             size="lg" 
@@ -216,7 +241,7 @@ export function SwapPanel() {
             data-testid="button-execute-swap"
           >
             {isExecuting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-            {isExecuting ? "Swapping..." : "Confirm Swap"}
+            {isExecuting ? "Confirm in Wallet..." : "Confirm Swap"}
           </Button>
         )}
       </div>

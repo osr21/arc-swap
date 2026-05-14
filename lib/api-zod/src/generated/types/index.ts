@@ -7,6 +7,7 @@
  */
 
 export * from "./errorResponse";
+export * from "./getWalletBalancesParams";
 export * from "./healthStatus";
 export * from "./swapEstimate";
 export * from "./swapHistory";

@@ -2,6 +2,7 @@ import React from "react";
 import { WalletBalances } from "@/components/wallet-balances";
 import { SwapPanel } from "@/components/swap-panel";
 import { SwapHistory } from "@/components/swap-history";
+import { ConnectWallet } from "@/components/connect-wallet";
 
 export function Home() {
   return (
@@ -13,10 +14,11 @@ export function Home() {
             <div className="w-4 h-4 bg-primary rotate-45 transform" />
           </div>
           <div>
-            <h1 className="font-bold text-xl tracking-tight text-foreground leading-tight">Arc Network</h1>
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Terminal</div>
+            <h1 className="font-bold text-xl tracking-tight text-foreground leading-tight">Arc Swap</h1>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Arc Network Testnet</div>
           </div>
         </div>
+        <ConnectWallet />
       </header>
 
       {/* Main Content Grid */}

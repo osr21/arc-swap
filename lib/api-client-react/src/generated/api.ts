@@ -18,6 +18,7 @@ import type {
 
 import type {
   ErrorResponse,
+  GetWalletBalancesParams,
   HealthStatus,
   SwapEstimate,
   SwapHistory,
@@ -286,44 +287,63 @@ export const useExecuteSwap = <
 };
 
 /**
- * Returns USDC, EURC, and cirBTC balances for the configured wallet on Arc Testnet
+ * Returns USDC, EURC, and cirBTC balances. If address is provided, fetches balances for that address; otherwise uses the configured backend wallet.
  * @summary Get wallet token balances
  */
-export const getGetWalletBalancesUrl = () => {
-  return `/api/wallet/balances`;
+export const getGetWalletBalancesUrl = (params?: GetWalletBalancesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/wallet/balances?${stringifiedParams}`
+    : `/api/wallet/balances`;
 };
 
 export const getWalletBalances = async (
+  params?: GetWalletBalancesParams,
   options?: RequestInit,
 ): Promise<WalletBalances> => {
-  return customFetch<WalletBalances>(getGetWalletBalancesUrl(), {
+  return customFetch<WalletBalances>(getGetWalletBalancesUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetWalletBalancesQueryKey = () => {
-  return [`/api/wallet/balances`] as const;
+export const getGetWalletBalancesQueryKey = (
+  params?: GetWalletBalancesParams,
+) => {
+  return [`/api/wallet/balances`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetWalletBalancesQueryOptions = <
   TData = Awaited<ReturnType<typeof getWalletBalances>>,
   TError = ErrorType<ErrorResponse>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getWalletBalances>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetWalletBalancesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWalletBalances>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetWalletBalancesQueryKey();
+  const queryKey =
+    queryOptions?.queryKey ?? getGetWalletBalancesQueryKey(params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getWalletBalances>>
-  > = ({ signal }) => getWalletBalances({ signal, ...requestOptions });
+  > = ({ signal }) => getWalletBalances(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getWalletBalances>>,
@@ -344,15 +364,18 @@ export type GetWalletBalancesQueryError = ErrorType<ErrorResponse>;
 export function useGetWalletBalances<
   TData = Awaited<ReturnType<typeof getWalletBalances>>,
   TError = ErrorType<ErrorResponse>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getWalletBalances>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetWalletBalancesQueryOptions(options);
+>(
+  params?: GetWalletBalancesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWalletBalances>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWalletBalancesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
