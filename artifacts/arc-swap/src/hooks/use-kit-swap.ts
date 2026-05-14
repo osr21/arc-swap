@@ -18,24 +18,30 @@ export interface KitSwapResult {
 
 const ALLOWED_EXPLORER_ORIGIN = "https://testnet.arcscan.app";
 
-const FEE_WALLET_ADDRESS = "0xf4a14B84108885AF2f18843DD18761706e47d5F6" as `0x${string}`;
-const PLATFORM_FEE_BPS = 30;
-const MAX_FEE_BPS = 100;
+const BACKEND_WALLET = "0xf4a14B84108885AF2f18843DD18761706e47d5F6" as `0x${string}`;
 
-if (!isAddress(FEE_WALLET_ADDRESS)) {
-  throw new Error(`Invalid hardcoded FEE_WALLET_ADDRESS: ${FEE_WALLET_ADDRESS}`);
+if (!isAddress(BACKEND_WALLET)) {
+  throw new Error(`Invalid hardcoded BACKEND_WALLET: ${BACKEND_WALLET}`);
 }
+
+const ERC20_ABI = [
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 const TOKEN_INFO: Record<string, { address: `0x${string}`; decimals: number } | undefined> = {
   USDC: { address: "0x3600000000000000000000000000000000000000", decimals: 6 },
   EURC: { address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a", decimals: 6 },
   cirBTC: undefined,
 };
-
-function calcFeeUnits(amountIn: string, decimals: number, feeBps: number): bigint {
-  const raw = parseUnits(amountIn, decimals);
-  return (raw * BigInt(feeBps)) / BigInt(10_000);
-}
 
 function safeSanitizeExplorerUrl(url: string, txHash: string): string {
   try {
@@ -76,28 +82,18 @@ export function useKitSwap() {
       const parsedIn = parseFloat(params.amountIn);
       if (isNaN(parsedIn) || parsedIn <= 0) throw new Error("Invalid swap amount.");
 
-      const effectiveBps = Math.min(PLATFORM_FEE_BPS, MAX_FEE_BPS);
       const tokenInfo = TOKEN_INFO[params.tokenIn];
 
-      if (tokenInfo && effectiveBps > 0) {
-        const feeRaw = calcFeeUnits(params.amountIn, tokenInfo.decimals, effectiveBps);
+      if (tokenInfo) {
+        // Transfer the full swap amount from user → backend wallet.
+        // The backend executes the swap using these tokens and returns the output.
+        const amountRaw = parseUnits(params.amountIn, tokenInfo.decimals);
 
         await walletClient.writeContract({
           address: tokenInfo.address,
-          abi: [
-            {
-              name: "transfer",
-              type: "function",
-              stateMutability: "nonpayable",
-              inputs: [
-                { name: "to", type: "address" },
-                { name: "amount", type: "uint256" },
-              ],
-              outputs: [{ name: "", type: "bool" }],
-            },
-          ] as const,
+          abi: ERC20_ABI,
           functionName: "transfer",
-          args: [FEE_WALLET_ADDRESS, feeRaw],
+          args: [BACKEND_WALLET, amountRaw],
           account: userAddress,
         });
       }
