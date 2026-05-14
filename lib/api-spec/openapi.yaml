@@ -3,13 +3,17 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Arc Network Token Swap DApp API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: swap
+    description: Token swap operations
+  - name: wallet
+    description: Wallet balance operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,105 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /swap/estimate:
+    post:
+      operationId: estimateSwap
+      tags: [swap]
+      summary: Estimate swap rate
+      description: Get a pre-swap estimate before executing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwapRequest"
+      responses:
+        "200":
+          description: Swap estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapEstimate"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /swap/execute:
+    post:
+      operationId: executeSwap
+      tags: [swap]
+      summary: Execute a token swap
+      description: Execute a swap from one token to another on Arc Testnet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwapRequest"
+      responses:
+        "200":
+          description: Swap result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Swap failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /wallet/balances:
+    get:
+      operationId: getWalletBalances
+      tags: [wallet]
+      summary: Get wallet token balances
+      description: Returns USDC, EURC, and cirBTC balances for the configured wallet on Arc Testnet
+      responses:
+        "200":
+          description: Wallet balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalances"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /swap/history:
+    get:
+      operationId: getSwapHistory
+      tags: [swap]
+      summary: Get recent swap history
+      description: Returns the list of recent swaps executed in this session
+      responses:
+        "200":
+          description: Swap history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapHistory"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +137,123 @@ components:
       required:
         - status
 
+    SwapRequest:
+      type: object
+      properties:
+        tokenIn:
+          type: string
+          enum: [USDC, EURC, cirBTC]
+          description: Token to swap from
+        tokenOut:
+          type: string
+          enum: [USDC, EURC, cirBTC]
+          description: Token to swap to
+        amountIn:
+          type: string
+          description: Human-readable amount to swap (e.g. "1.00")
+      required:
+        - tokenIn
+        - tokenOut
+        - amountIn
+
+    SwapEstimate:
+      type: object
+      properties:
+        tokenIn:
+          type: string
+        tokenOut:
+          type: string
+        amountIn:
+          type: string
+        estimatedAmountOut:
+          type: string
+        exchangeRate:
+          type: string
+        fee:
+          type: string
+      required:
+        - tokenIn
+        - tokenOut
+        - amountIn
+        - estimatedAmountOut
+        - exchangeRate
+        - fee
+
+    SwapResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        transactionHash:
+          type: string
+        explorerUrl:
+          type: string
+        tokenIn:
+          type: string
+        tokenOut:
+          type: string
+        amountIn:
+          type: string
+        amountOut:
+          type: string
+        timestamp:
+          type: string
+      required:
+        - success
+        - transactionHash
+        - explorerUrl
+        - tokenIn
+        - tokenOut
+        - amountIn
+        - amountOut
+        - timestamp
+
+    WalletBalances:
+      type: object
+      properties:
+        address:
+          type: string
+        balances:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenBalance"
+        network:
+          type: string
+      required:
+        - address
+        - balances
+        - network
+
+    TokenBalance:
+      type: object
+      properties:
+        token:
+          type: string
+        balance:
+          type: string
+        symbol:
+          type: string
+      required:
+        - token
+        - balance
+        - symbol
+
+    SwapHistory:
+      type: object
+      properties:
+        swaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwapResult"
+      required:
+        - swaps
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: string
+      required:
+        - error

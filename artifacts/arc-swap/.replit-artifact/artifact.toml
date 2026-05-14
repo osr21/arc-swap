@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Arc Token Swap"
+version = "1.0.0"
+id = "artifacts/arc-swap"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19345
+
+[services.development]
+run = "pnpm --filter @workspace/arc-swap run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/arc-swap", "run", "build" ]
+publicDir = "artifacts/arc-swap/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19345"
+BASE_PATH = "/"

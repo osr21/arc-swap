@@ -5,7 +5,8 @@
  * Arc Network Token Swap DApp API
  * OpenAPI spec version: 0.1.0
  */
+import type { SwapResult } from "./swapResult";
 
-export interface HealthStatus {
-  status: string;
+export interface SwapHistory {
+  swaps: SwapResult[];
 }
