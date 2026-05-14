@@ -4,11 +4,50 @@ import { PLATFORM_FEE_BPS, getFeeWalletAddress } from "../lib/fee";
 const router = Router();
 
 router.get("/config", async (req, res) => {
+  const origin = req.get("origin") ?? "";
+  const host = req.get("host") ?? "";
+  const referer = req.get("referer") ?? "";
+
+  const devDomain = process.env.REPLIT_DEV_DOMAIN ?? "";
+  const replitDomains = (process.env.REPLIT_DOMAINS ?? "").split(",").map((d) => d.trim()).filter(Boolean);
+
+  const allowedOrigins = new Set([
+    ...(devDomain ? [`https://${devDomain}`, `http://${devDomain}`] : []),
+    ...replitDomains.map((d) => `https://${d}`),
+    "http://localhost",
+    "http://127.0.0.1",
+  ]);
+
+  const isSameHost =
+    host.startsWith("localhost") ||
+    host.startsWith("127.0.0.1") ||
+    (devDomain && host.includes(devDomain));
+
+  const originAllowed =
+    !origin ||
+    isSameHost ||
+    allowedOrigins.has(origin) ||
+    (devDomain && origin.includes(devDomain)) ||
+    replitDomains.some((d) => origin.includes(d));
+
+  const refererAllowed =
+    !referer ||
+    (devDomain && referer.includes(devDomain)) ||
+    replitDomains.some((d) => referer.includes(d)) ||
+    referer.startsWith("http://localhost") ||
+    referer.startsWith("http://127.0.0.1");
+
+  if (!originAllowed && !refererAllowed) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   const kitKey = process.env.CIRCLE_KIT_KEY;
   if (!kitKey) {
     res.status(500).json({ error: "CIRCLE_KIT_KEY not configured" });
     return;
   }
+
   try {
     const feeWalletAddress = await getFeeWalletAddress();
     res.json({ kitKey, feeWalletAddress, platformFeeBps: PLATFORM_FEE_BPS });

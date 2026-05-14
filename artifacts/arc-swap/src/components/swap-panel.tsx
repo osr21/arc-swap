@@ -94,7 +94,8 @@ export function SwapPanel() {
   const handleExecuteSwap = async () => {
     setErrorMsg(null);
     try {
-      const result = await executeSwap({ tokenIn, tokenOut, amountIn });
+      const slippageBps = Math.round(slippageNum * 100);
+      const result = await executeSwap({ tokenIn, tokenOut, amountIn, slippageBps });
       setSwapResult(result);
       queryClient.invalidateQueries({ queryKey: getGetWalletBalancesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetSwapHistoryQueryKey() });
@@ -160,7 +161,12 @@ export function SwapPanel() {
                     type="number"
                     placeholder="Custom"
                     value={customSlippage}
-                    onChange={(e) => setCustomSlippage(e.target.value)}
+                    onChange={(e) => {
+                      const raw = parseFloat(e.target.value);
+                      if (isNaN(raw)) { setCustomSlippage(""); return; }
+                      const clamped = Math.min(50, Math.max(0.01, raw));
+                      setCustomSlippage(String(clamped));
+                    }}
                     className="h-8 text-xs font-mono"
                     min="0.01"
                     max="50"
@@ -261,9 +267,11 @@ export function SwapPanel() {
           <div className="text-xs text-muted-foreground mb-1">Pay</div>
           <div className="flex gap-2">
             <Input
-              type="text"
+              type="number"
               placeholder="0.00"
               value={amountIn}
+              min="0"
+              step="any"
               onChange={(e) => {
                 setAmountIn(e.target.value);
                 estimateMutation.reset();
