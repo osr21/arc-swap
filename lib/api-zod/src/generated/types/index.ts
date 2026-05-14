@@ -7,6 +7,9 @@
  */
 
 export * from "./errorResponse";
+export * from "./feeEarnings";
+export * from "./feeEvent";
+export * from "./feeTotalByToken";
 export * from "./getWalletBalancesParams";
 export * from "./healthStatus";
 export * from "./swapEstimate";

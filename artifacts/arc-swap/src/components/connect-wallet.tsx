@@ -1,8 +1,8 @@
 import React from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { Button } from "@/components/ui/button";
-import { Wallet, LogOut, ChevronDown, Plus, AlertTriangle } from "lucide-react";
+import { Wallet, LogOut, ChevronDown, Plus, AlertTriangle, Radio } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { shortenAddress } from "@/lib/format";
 import { arcTestnet } from "@/lib/arc-chain";
+import { walletConnectEnabled } from "@/lib/wagmi-config";
 
 const ARC_TESTNET_PARAMS = {
   chainId: `0x${(5042002).toString(16)}`,
@@ -22,17 +23,20 @@ const ARC_TESTNET_PARAMS = {
 };
 
 async function addArcTestnetToMetaMask() {
-  const provider = (window as Window & { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+  const provider = (
+    window as Window & {
+      ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
+    }
+  ).ethereum;
   if (!provider) return;
   try {
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [ARC_TESTNET_PARAMS],
-    });
+    await provider.request({ method: "wallet_addEthereumChain", params: [ARC_TESTNET_PARAMS] });
   } catch (e) {
     console.error("Failed to add Arc Testnet:", e);
   }
 }
+
+const wcProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
 
 export function ConnectWallet() {
   const { address, isConnected, chainId } = useAccount();
@@ -74,10 +78,7 @@ export function ConnectWallet() {
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                 Switch to Arc Testnet
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={addArcTestnetToMetaMask}
-                className="gap-2 text-sm"
-              >
+              <DropdownMenuItem onClick={addArcTestnetToMetaMask} className="gap-2 text-sm">
                 <Plus className="h-3.5 w-3.5" />
                 Add Arc Testnet
               </DropdownMenuItem>
@@ -97,16 +98,44 @@ export function ConnectWallet() {
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="gap-2 border-primary/30 hover:border-primary/60 hover:bg-primary/10"
-      onClick={() => connect({ connector: injected() })}
-      disabled={isPending}
-      data-testid="button-connect-wallet"
-    >
-      <Wallet className="h-3.5 w-3.5" />
-      {isPending ? "Connecting..." : "Connect Wallet"}
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-2 border-primary/30 hover:border-primary/60 hover:bg-primary/10"
+        onClick={() => connect({ connector: injected() })}
+        disabled={isPending}
+        data-testid="button-connect-wallet"
+      >
+        <Wallet className="h-3.5 w-3.5" />
+        {isPending ? "Connecting..." : "MetaMask"}
+      </Button>
+      {walletConnectEnabled && wcProjectId && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2 border-primary/30 hover:border-primary/60 hover:bg-primary/10"
+          onClick={() =>
+            connect({
+              connector: walletConnect({
+                projectId: wcProjectId,
+                showQrModal: true,
+                metadata: {
+                  name: "Arc Swap",
+                  description: "Token swap on Arc Network",
+                  url: window.location.origin,
+                  icons: [],
+                },
+              }),
+            })
+          }
+          disabled={isPending}
+          data-testid="button-connect-walletconnect"
+        >
+          <Radio className="h-3.5 w-3.5" />
+          WalletConnect
+        </Button>
+      )}
+    </div>
   );
 }

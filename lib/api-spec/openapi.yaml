@@ -14,6 +14,8 @@ tags:
     description: Token swap operations
   - name: wallet
     description: Wallet balance operations
+  - name: fees
+    description: Platform fee earnings
 paths:
   /healthz:
     get:
@@ -125,7 +127,7 @@ paths:
       operationId: getSwapHistory
       tags: [swap]
       summary: Get recent swap history
-      description: Returns the list of recent swaps executed in this session
+      description: Returns the list of recent swaps executed
       responses:
         "200":
           description: Swap history
@@ -133,6 +135,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SwapHistory"
+
+  /fees:
+    get:
+      operationId: getFeeEarnings
+      tags: [fees]
+      summary: Get platform fee earnings
+      description: Returns accumulated platform fee totals and recent fee events
+      responses:
+        "200":
+          description: Fee earnings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeeEarnings"
 
 components:
   schemas:
@@ -187,6 +203,9 @@ components:
         platformFeeAddress:
           type: string
           description: Wallet address that receives the platform fee
+        priceImpact:
+          type: string
+          description: Estimated price impact as a percentage
       required:
         - tokenIn
         - tokenOut
@@ -197,6 +216,7 @@ components:
         - fee
         - platformFee
         - platformFeeAddress
+        - priceImpact
 
     SwapResult:
       type: object
@@ -266,6 +286,58 @@ components:
             $ref: "#/components/schemas/SwapResult"
       required:
         - swaps
+
+    FeeEarnings:
+      type: object
+      properties:
+        totals:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeeTotalByToken"
+        recent:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeeEvent"
+      required:
+        - totals
+        - recent
+
+    FeeTotalByToken:
+      type: object
+      properties:
+        token:
+          type: string
+        totalFee:
+          type: string
+        eventCount:
+          type: number
+      required:
+        - token
+        - totalFee
+        - eventCount
+
+    FeeEvent:
+      type: object
+      properties:
+        id:
+          type: number
+        token:
+          type: string
+        feeAmount:
+          type: string
+        transactionHash:
+          type: string
+        swapAmountIn:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - token
+        - feeAmount
+        - transactionHash
+        - swapAmountIn
+        - createdAt
 
     ErrorResponse:
       type: object

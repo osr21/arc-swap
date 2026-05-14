@@ -19,4 +19,6 @@ export interface SwapEstimate {
   platformFee: string;
   /** Wallet address that receives the platform fee */
   platformFeeAddress: string;
+  /** Estimated price impact as a percentage */
+  priceImpact: string;
 }

@@ -3,6 +3,7 @@ import { WalletBalances } from "@/components/wallet-balances";
 import { SwapPanel } from "@/components/swap-panel";
 import { SwapHistory } from "@/components/swap-history";
 import { ConnectWallet } from "@/components/connect-wallet";
+import { FeeDashboard } from "@/components/fee-dashboard";
 
 export function Home() {
   return (
@@ -23,10 +24,11 @@ export function Home() {
 
       {/* Main Content Grid */}
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Wallet & History */}
+        {/* Left Column: Wallet, History & Fee Dashboard */}
         <div className="lg:col-span-7 flex flex-col gap-8 order-2 lg:order-1">
           <WalletBalances />
           <SwapHistory />
+          <FeeDashboard />
         </div>
 
         {/* Right Column: Swap Interface */}

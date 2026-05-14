@@ -43,6 +43,7 @@ export const EstimateSwapResponse = zod.object({
   platformFeeAddress: zod
     .string()
     .describe("Wallet address that receives the platform fee"),
+  priceImpact: zod.string().describe("Estimated price impact as a percentage"),
 });
 
 /**
@@ -92,7 +93,7 @@ export const GetWalletBalancesResponse = zod.object({
 });
 
 /**
- * Returns the list of recent swaps executed in this session
+ * Returns the list of recent swaps executed
  * @summary Get recent swap history
  */
 export const GetSwapHistoryResponse = zod.object({
@@ -106,6 +107,30 @@ export const GetSwapHistoryResponse = zod.object({
       amountIn: zod.string(),
       amountOut: zod.string(),
       timestamp: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Returns accumulated platform fee totals and recent fee events
+ * @summary Get platform fee earnings
+ */
+export const GetFeeEarningsResponse = zod.object({
+  totals: zod.array(
+    zod.object({
+      token: zod.string(),
+      totalFee: zod.string(),
+      eventCount: zod.number(),
+    }),
+  ),
+  recent: zod.array(
+    zod.object({
+      id: zod.number(),
+      token: zod.string(),
+      feeAmount: zod.string(),
+      transactionHash: zod.string(),
+      swapAmountIn: zod.string(),
+      createdAt: zod.string(),
     }),
   ),
 });

@@ -18,6 +18,7 @@ import type {
 
 import type {
   ErrorResponse,
+  FeeEarnings,
   GetWalletBalancesParams,
   HealthStatus,
   SwapEstimate,
@@ -385,7 +386,7 @@ export function useGetWalletBalances<
 }
 
 /**
- * Returns the list of recent swaps executed in this session
+ * Returns the list of recent swaps executed
  * @summary Get recent swap history
  */
 export const getGetSwapHistoryUrl = () => {
@@ -452,6 +453,82 @@ export function useGetSwapHistory<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetSwapHistoryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns accumulated platform fee totals and recent fee events
+ * @summary Get platform fee earnings
+ */
+export const getGetFeeEarningsUrl = () => {
+  return `/api/fees`;
+};
+
+export const getFeeEarnings = async (
+  options?: RequestInit,
+): Promise<FeeEarnings> => {
+  return customFetch<FeeEarnings>(getGetFeeEarningsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFeeEarningsQueryKey = () => {
+  return [`/api/fees`] as const;
+};
+
+export const getGetFeeEarningsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFeeEarnings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFeeEarnings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFeeEarningsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFeeEarnings>>> = ({
+    signal,
+  }) => getFeeEarnings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFeeEarnings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFeeEarningsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFeeEarnings>>
+>;
+export type GetFeeEarningsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get platform fee earnings
+ */
+
+export function useGetFeeEarnings<
+  TData = Awaited<ReturnType<typeof getFeeEarnings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFeeEarnings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFeeEarningsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

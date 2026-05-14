@@ -2,6 +2,8 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
+import { db, swapHistoryTable, feeEarningsTable } from "@workspace/db";
+import { desc } from "drizzle-orm";
 import { PLATFORM_FEE_BPS, calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
 
 const router = Router();
@@ -12,17 +14,6 @@ const MIN_SWAP_AMOUNT = 0.01;
 const MAX_SWAP_AMOUNT = 1_000_000;
 
 type Token = "USDC" | "EURC" | "cirBTC";
-
-const swapHistory: Array<{
-  success: boolean;
-  transactionHash: string;
-  explorerUrl: string;
-  tokenIn: string;
-  tokenOut: string;
-  amountIn: string;
-  amountOut: string;
-  timestamp: string;
-}> = [];
 
 function getAdapter() {
   const privateKey = process.env.WALLET_PRIVATE_KEY;
@@ -37,37 +28,25 @@ function getKitKey() {
   return key;
 }
 
-function validateSwapInput(
-  tokenIn: unknown,
-  tokenOut: unknown,
-  amountIn: unknown,
-): string | null {
-  if (!tokenIn || !tokenOut || !amountIn) {
-    return "tokenIn, tokenOut, and amountIn are required";
-  }
-  if (!VALID_TOKENS.has(tokenIn as string)) {
-    return `Invalid tokenIn. Supported tokens: ${[...VALID_TOKENS].join(", ")}`;
-  }
-  if (!VALID_TOKENS.has(tokenOut as string)) {
-    return `Invalid tokenOut. Supported tokens: ${[...VALID_TOKENS].join(", ")}`;
-  }
-  if (tokenIn === tokenOut) {
-    return "tokenIn and tokenOut must be different";
-  }
+function validateSwapInput(tokenIn: unknown, tokenOut: unknown, amountIn: unknown): string | null {
+  if (!tokenIn || !tokenOut || !amountIn) return "tokenIn, tokenOut, and amountIn are required";
+  if (!VALID_TOKENS.has(tokenIn as string)) return `Invalid tokenIn. Supported: ${[...VALID_TOKENS].join(", ")}`;
+  if (!VALID_TOKENS.has(tokenOut as string)) return `Invalid tokenOut. Supported: ${[...VALID_TOKENS].join(", ")}`;
+  if (tokenIn === tokenOut) return "tokenIn and tokenOut must be different";
   const parsed = parseFloat(amountIn as string);
-  if (isNaN(parsed) || !isFinite(parsed)) {
-    return "amountIn must be a valid number";
-  }
-  if (parsed <= 0) {
-    return "amountIn must be greater than 0";
-  }
-  if (parsed < MIN_SWAP_AMOUNT) {
-    return `Minimum swap amount is ${MIN_SWAP_AMOUNT}`;
-  }
-  if (parsed > MAX_SWAP_AMOUNT) {
-    return `Maximum swap amount is ${MAX_SWAP_AMOUNT.toLocaleString()}`;
-  }
+  if (isNaN(parsed) || !isFinite(parsed)) return "amountIn must be a valid number";
+  if (parsed <= 0) return "amountIn must be greater than 0";
+  if (parsed < MIN_SWAP_AMOUNT) return `Minimum swap amount is ${MIN_SWAP_AMOUNT}`;
+  if (parsed > MAX_SWAP_AMOUNT) return `Maximum swap amount is ${MAX_SWAP_AMOUNT.toLocaleString()}`;
   return null;
+}
+
+function calcPriceImpact(effectiveAmountIn: string, amountOut: string): string {
+  const inVal = parseFloat(effectiveAmountIn);
+  const outVal = parseFloat(amountOut);
+  if (inVal <= 0 || outVal <= 0) return "0.00";
+  const impact = Math.max(0, (1 - outVal / inVal) * 100);
+  return impact.toFixed(2);
 }
 
 const estimateLimiter = rateLimit({
@@ -75,7 +54,7 @@ const estimateLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many quote requests — please wait a moment before retrying" },
+  message: { error: "Too many quote requests — please wait a moment" },
 });
 
 const executeLimiter = rateLimit({
@@ -83,21 +62,14 @@ const executeLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many swap requests — please wait a minute before retrying" },
+  message: { error: "Too many swap requests — please wait a minute" },
 });
 
 router.post("/swap/estimate", estimateLimiter, async (req, res) => {
-  const { tokenIn, tokenOut, amountIn } = req.body as {
-    tokenIn: Token;
-    tokenOut: Token;
-    amountIn: string;
-  };
+  const { tokenIn, tokenOut, amountIn } = req.body as { tokenIn: Token; tokenOut: Token; amountIn: string };
 
-  const validationError = validateSwapInput(tokenIn, tokenOut, amountIn);
-  if (validationError) {
-    res.status(400).json({ error: validationError });
-    return;
-  }
+  const err = validateSwapInput(tokenIn, tokenOut, amountIn);
+  if (err) { res.status(400).json({ error: err }); return; }
 
   try {
     const { platformFee, effectiveAmountIn } = calcPlatformFee(amountIn);
@@ -113,7 +85,7 @@ router.post("/swap/estimate", estimateLimiter, async (req, res) => {
     });
 
     const r = result as {
-      estimatedOutput?: { amount?: string; token?: string };
+      estimatedOutput?: { amount?: string };
       fees?: Array<{ token?: string; amount?: string; type?: string }>;
     };
 
@@ -127,16 +99,16 @@ router.post("/swap/estimate", estimateLimiter, async (req, res) => {
       .reduce((sum, f) => sum + parseFloat(f.amount ?? "0"), 0)
       .toFixed(6);
 
+    const priceImpact = calcPriceImpact(effectiveAmountIn, amountOut);
+
     res.json({
-      tokenIn,
-      tokenOut,
-      amountIn,
-      effectiveAmountIn,
+      tokenIn, tokenOut, amountIn, effectiveAmountIn,
       estimatedAmountOut: amountOut,
       exchangeRate: rate,
       fee: totalFee,
       platformFee,
       platformFeeAddress,
+      priceImpact,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -146,17 +118,10 @@ router.post("/swap/estimate", estimateLimiter, async (req, res) => {
 });
 
 router.post("/swap/execute", executeLimiter, async (req, res) => {
-  const { tokenIn, tokenOut, amountIn } = req.body as {
-    tokenIn: Token;
-    tokenOut: Token;
-    amountIn: string;
-  };
+  const { tokenIn, tokenOut, amountIn } = req.body as { tokenIn: Token; tokenOut: Token; amountIn: string };
 
   const validationError = validateSwapInput(tokenIn, tokenOut, amountIn);
-  if (validationError) {
-    res.status(400).json({ error: validationError });
-    return;
-  }
+  if (validationError) { res.status(400).json({ error: validationError }); return; }
 
   try {
     const { platformFee, effectiveAmountIn } = calcPlatformFee(amountIn);
@@ -185,8 +150,28 @@ router.post("/swap/execute", executeLimiter, async (req, res) => {
     const explorerUrl = r.explorerUrl ?? `https://testnet.arcscan.app/tx/${txHash}`;
     const amountOut = r.amountOut ?? r.amount ?? "0";
     const timestamp = new Date().toISOString();
+    const priceImpact = calcPriceImpact(effectiveAmountIn, amountOut);
 
-    const record = {
+    await Promise.all([
+      db.insert(swapHistoryTable).values({
+        transactionHash: txHash,
+        explorerUrl,
+        tokenIn,
+        tokenOut,
+        amountIn: effectiveAmountIn,
+        amountOut,
+        platformFee,
+        priceImpact,
+      }),
+      db.insert(feeEarningsTable).values({
+        token: tokenIn,
+        feeAmount: platformFee,
+        transactionHash: txHash,
+        swapAmountIn: amountIn,
+      }),
+    ]);
+
+    res.json({
       success: true,
       transactionHash: txHash,
       explorerUrl,
@@ -195,12 +180,7 @@ router.post("/swap/execute", executeLimiter, async (req, res) => {
       amountIn: effectiveAmountIn,
       amountOut,
       timestamp,
-    };
-
-    swapHistory.unshift(record);
-    if (swapHistory.length > 50) swapHistory.pop();
-
-    res.json(record);
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     req.log.error({ err }, "Execute swap failed");
@@ -208,8 +188,31 @@ router.post("/swap/execute", executeLimiter, async (req, res) => {
   }
 });
 
-router.get("/swap/history", (_req, res) => {
-  res.json({ swaps: swapHistory });
+router.get("/swap/history", async (req, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(swapHistoryTable)
+      .orderBy(desc(swapHistoryTable.createdAt))
+      .limit(50);
+
+    res.json({
+      swaps: rows.map((r) => ({
+        success: true,
+        transactionHash: r.transactionHash,
+        explorerUrl: r.explorerUrl,
+        tokenIn: r.tokenIn,
+        tokenOut: r.tokenOut,
+        amountIn: r.amountIn,
+        amountOut: r.amountOut,
+        timestamp: r.createdAt.toISOString(),
+      })),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    req.log.error({ err }, "Get swap history failed");
+    res.status(500).json({ error: "Failed to fetch history", details: msg });
+  }
 });
 
 export default router;

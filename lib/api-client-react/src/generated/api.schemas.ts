@@ -55,6 +55,8 @@ export interface SwapEstimate {
   platformFee: string;
   /** Wallet address that receives the platform fee */
   platformFeeAddress: string;
+  /** Estimated price impact as a percentage */
+  priceImpact: string;
 }
 
 export interface SwapResult {
@@ -82,6 +84,26 @@ export interface WalletBalances {
 
 export interface SwapHistory {
   swaps: SwapResult[];
+}
+
+export interface FeeTotalByToken {
+  token: string;
+  totalFee: string;
+  eventCount: number;
+}
+
+export interface FeeEvent {
+  id: number;
+  token: string;
+  feeAmount: string;
+  transactionHash: string;
+  swapAmountIn: string;
+  createdAt: string;
+}
+
+export interface FeeEarnings {
+  totals: FeeTotalByToken[];
+  recent: FeeEvent[];
 }
 
 export interface ErrorResponse {
