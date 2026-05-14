@@ -158,3 +158,32 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
+  # Security: fix vulnerable transitive dependencies
+  # picomatch ReDoS + method injection (GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p) — path: micromatch>picomatch
+  # micromatch resolves picomatch v4 so we need ^4.0.4 (which also satisfies the v2 fix >=2.3.2)
+  "micromatch>picomatch": "^4.0.4"
+  # picomatch v4 ReDoS + method injection (GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p) — path: vite>picomatch
+  "vite>picomatch": "^4.0.4"
+  # picomatch v4 via @rollup/pluginutils (additional path)
+  "@rollup/pluginutils>picomatch": "^4.0.4"
+  # path-to-regexp DoS (GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7) — path: express>router>path-to-regexp
+  "path-to-regexp": "^8.4.0"
+  # fast-uri path traversal + host confusion (GHSA-q3j6-qgpj-74h6, GHSA-v39h-62p7-jpjc)
+  "fast-uri": "3.1.2"
+  # lodash code injection + prototype pollution (GHSA-r5fr-rjxr-66jc, GHSA-f23m-r3pf-42rh)
+  "lodash": "^4.18.0"
+  # yaml stack overflow (GHSA-48c2-rrv3-qjmp) — path: vite>yaml
+  "yaml": "^2.8.3"
+  # brace-expansion ReDoS (GHSA-f886-m6hf-6m8v) — path: typedoc>minimatch>brace-expansion
+  "minimatch>brace-expansion": "^5.0.0"
+  # postcss XSS (GHSA-qx2v-qp2m-jg93) — path: vite>postcss
+  "postcss": "^8.5.10"
+  # elliptic (GHSA-848j-6mx2-7j84): no patched npm version exists (advisory says "<0.0.0").
+  # The only path to elliptic is: vite-plugin-node-polyfills > node-stdlib-browser >
+  # crypto-browserify > browserify-sign > elliptic.
+  # Since the arc-swap vite config already excludes "crypto" from the runtime polyfills
+  # (exclude: ['crypto']), pinning crypto-browserify to 3.3.0 (last version before
+  # browserify-sign was added) severs the elliptic chain without affecting the app at runtime.
+  "crypto-browserify": "3.3.0"
+  # sha.js: crypto-browserify@3.3.0 pulls in sha.js; pin to the patched 2.4.12 (latest).
+  "sha.js": "2.4.12"

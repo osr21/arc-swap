@@ -30,7 +30,7 @@ if (!basePath) {
 export default defineConfig({
   base: basePath,
   plugins: [
-    nodePolyfills({ globals: { Buffer: true, process: true } }),
+    nodePolyfills({ exclude: ['crypto'], globals: { Buffer: true, process: true } }),
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
