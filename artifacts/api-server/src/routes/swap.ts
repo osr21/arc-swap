@@ -57,13 +57,21 @@ router.post("/swap/estimate", async (req, res) => {
       config: { kitKey: getKitKey() },
     });
 
-    const amountOut = (result as { amountOut?: string; estimatedAmountOut?: string; amount?: string }).amountOut
-      ?? (result as { amountOut?: string; estimatedAmountOut?: string; amount?: string }).estimatedAmountOut
-      ?? (result as { amountOut?: string; estimatedAmountOut?: string; amount?: string }).amount
-      ?? "0";
+    const r = result as {
+      estimatedOutput?: { amount?: string; token?: string };
+      fees?: Array<{ token?: string; amount?: string; type?: string }>;
+      stopLimit?: { amount?: string; token?: string };
+    };
+
+    const amountOut = r.estimatedOutput?.amount ?? "0";
     const inNum = parseFloat(amountIn);
     const outNum = parseFloat(amountOut);
-    const rate = inNum > 0 ? (outNum / inNum).toFixed(6) : "0";
+    const rate = inNum > 0 ? (outNum / inNum).toFixed(6) : "0.000000";
+
+    const totalFee = (r.fees ?? [])
+      .filter((f) => f.token === tokenIn)
+      .reduce((sum, f) => sum + parseFloat(f.amount ?? "0"), 0)
+      .toFixed(6);
 
     res.json({
       tokenIn,
@@ -71,7 +79,7 @@ router.post("/swap/estimate", async (req, res) => {
       amountIn,
       estimatedAmountOut: amountOut,
       exchangeRate: rate,
-      fee: "0.05",
+      fee: totalFee,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
