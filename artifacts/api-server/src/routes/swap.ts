@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
+import { PLATFORM_FEE_BPS, calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
 
 const router = Router();
 const kit = new AppKit();
@@ -73,6 +74,9 @@ router.post("/swap/estimate", async (req, res) => {
       .reduce((sum, f) => sum + parseFloat(f.amount ?? "0"), 0)
       .toFixed(6);
 
+    const { platformFee } = calcPlatformFee(amountIn);
+    const platformFeeAddress = await getFeeWalletAddress();
+
     res.json({
       tokenIn,
       tokenOut,
@@ -80,6 +84,8 @@ router.post("/swap/estimate", async (req, res) => {
       estimatedAmountOut: amountOut,
       exchangeRate: rate,
       fee: totalFee,
+      platformFee,
+      platformFeeAddress,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -105,12 +111,16 @@ router.post("/swap/execute", async (req, res) => {
   }
 
   try {
+    const { platformFee, effectiveAmountIn } = calcPlatformFee(amountIn);
+    const feeWallet = await getFeeWalletAddress();
+    req.log.info({ amountIn, platformFee, effectiveAmountIn, feeWallet }, "Swap with platform fee");
+
     const adapter = getAdapter();
     const result = await kit.swap({
       from: { adapter, chain: "Arc_Testnet" },
       tokenIn,
       tokenOut,
-      amountIn,
+      amountIn: effectiveAmountIn,
       config: { kitKey: getKitKey() },
     });
 
@@ -134,7 +144,7 @@ router.post("/swap/execute", async (req, res) => {
       explorerUrl,
       tokenIn,
       tokenOut,
-      amountIn,
+      amountIn: effectiveAmountIn,
       amountOut,
       timestamp,
     };

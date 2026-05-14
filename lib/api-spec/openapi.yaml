@@ -178,6 +178,12 @@ components:
           type: string
         fee:
           type: string
+        platformFee:
+          type: string
+          description: Platform fee deducted from amountIn (0.3%)
+        platformFeeAddress:
+          type: string
+          description: Wallet address that receives the platform fee
       required:
         - tokenIn
         - tokenOut
@@ -185,6 +191,8 @@ components:
         - estimatedAmountOut
         - exchangeRate
         - fee
+        - platformFee
+        - platformFeeAddress
 
     SwapResult:
       type: object

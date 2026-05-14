@@ -49,6 +49,10 @@ export interface SwapEstimate {
   estimatedAmountOut: string;
   exchangeRate: string;
   fee: string;
+  /** Platform fee deducted from amountIn (0.3%) */
+  platformFee: string;
+  /** Wallet address that receives the platform fee */
+  platformFeeAddress: string;
 }
 
 export interface SwapResult {

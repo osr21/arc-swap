@@ -34,6 +34,12 @@ export const EstimateSwapResponse = zod.object({
   estimatedAmountOut: zod.string(),
   exchangeRate: zod.string(),
   fee: zod.string(),
+  platformFee: zod
+    .string()
+    .describe("Platform fee deducted from amountIn (0.3%)"),
+  platformFeeAddress: zod
+    .string()
+    .describe("Wallet address that receives the platform fee"),
 });
 
 /**
