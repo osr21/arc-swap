@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arc Swap — Token Swap DApp on Arc Network</title>
+  <meta name="description" content="A full-stack decentralised token swap application built on Arc Network Testnet using Circle's App Kit SDK." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: #12121a;
+      --bg-card2: #1a1a26;
+      --border: #2a2a3a;
+      --primary: #6c63ff;
+      --primary-dim: rgba(108,99,255,.15);
+      --accent: #00d4aa;
+      --accent-dim: rgba(0,212,170,.12);
+      --text: #e8e8f0;
+      --muted: #6b6b8a;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --green: #22c55e;
+      --font: 'Inter', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,15,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-logo-icon {
+      width: 32px; height: 32px;
+      background: var(--primary-dim);
+      border: 1px solid rgba(108,99,255,.4);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-logo-icon span {
+      width: 12px; height: 12px;
+      background: var(--primary);
+      transform: rotate(45deg);
+      display: block;
+      border-radius: 2px;
+    }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); font-size: .875rem; font-weight: 500; transition: color .15s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-badge {
+      background: var(--primary-dim);
+      border: 1px solid rgba(108,99,255,.3);
+      color: var(--primary);
+      font-size: .72rem;
+      font-weight: 600;
+      padding: .2rem .6rem;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+
+    section { padding: 5rem 0; }
+    section + section { border-top: 1px solid var(--border); }
+
+    h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.15; letter-spacing: -.03em; }
+    h2 { font-size: 1.8rem; font-weight: 700; letter-spacing: -.02em; margin-bottom: 1rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: .5rem; }
+    p { color: rgba(232,232,240,.75); }
+
+    /* ── Hero ── */
+    #hero {
+      padding: 7rem 0 5rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    #hero::before {
+      content: '';
+      position: absolute;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 700px; height: 500px;
+      background: radial-gradient(ellipse at center, rgba(108,99,255,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      background: var(--primary-dim);
+      border: 1px solid rgba(108,99,255,.3);
+      color: var(--primary);
+      font-size: .8rem;
+      font-weight: 600;
+      padding: .35rem 1rem;
+      border-radius: 20px;
+      margin-bottom: 1.75rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 1.25rem auto 2.5rem;
+    }
+    .hero-ctas { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .7rem 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: .9rem;
+      transition: all .2s;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border: 1px solid transparent;
+    }
+    .btn-primary:hover { background: #7c74ff; text-decoration: none; }
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
+
+    .chain-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      background: var(--accent-dim);
+      border: 1px solid rgba(0,212,170,.25);
+      color: var(--accent);
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .25rem .75rem;
+      border-radius: 20px;
+      margin-top: 2rem;
+      font-family: var(--mono);
+    }
+    .chain-pill::before { content: '●'; font-size: .5rem; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Feature grid ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.25rem;
+      margin-top: 2.5rem;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: rgba(108,99,255,.4); transform: translateY(-2px); }
+    .feature-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card p { font-size: .875rem; margin-top: .3rem; }
+
+    /* ── Token table ── */
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .token-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+    }
+    .token-symbol {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: .25rem;
+    }
+    .token-addr {
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--muted);
+      word-break: break-all;
+      margin-top: .5rem;
+      background: var(--bg);
+      padding: .4rem .6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Architecture ── */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .arch-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+    .arch-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-bottom: .75rem;
+    }
+    .arch-items { list-style: none; }
+    .arch-items li {
+      font-size: .85rem;
+      padding: .2rem 0;
+      color: rgba(232,232,240,.8);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .arch-items li::before { content: '→'; color: var(--primary); font-size: .75rem; }
+
+    /* ── API Reference ── */
+    .endpoint {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .method {
+      font-family: var(--mono);
+      font-size: .75rem;
+      font-weight: 700;
+      padding: .2rem .6rem;
+      border-radius: 5px;
+      min-width: 50px;
+      text-align: center;
+    }
+    .method-get { background: rgba(34,197,94,.15); color: var(--green); }
+    .method-post { background: rgba(108,99,255,.15); color: var(--primary); }
+    .endpoint-path { font-family: var(--mono); font-size: .9rem; }
+    .endpoint-desc { color: var(--muted); font-size: .85rem; margin-left: auto; }
+    .endpoint-body { padding: 1rem 1.25rem; }
+    .endpoint-body p { font-size: .875rem; margin-bottom: .75rem; }
+
+    /* ── Code blocks ── */
+    pre, code {
+      font-family: var(--mono);
+      font-size: .82rem;
+    }
+    pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      overflow-x: auto;
+      line-height: 1.7;
+      color: rgba(232,232,240,.9);
+    }
+    code {
+      background: var(--bg-card2);
+      padding: .1em .35em;
+      border-radius: 4px;
+      font-size: .82em;
+      color: var(--accent);
+    }
+
+    /* ── Setup steps ── */
+    .steps { margin-top: 2rem; }
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 36px; height: 36px;
+      min-width: 36px;
+      background: var(--primary-dim);
+      border: 1px solid rgba(108,99,255,.4);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+      font-size: .9rem;
+      color: var(--primary);
+    }
+    .step-content h3 { margin-bottom: .35rem; }
+    .step-content p { font-size: .875rem; }
+
+    /* ── Fee model ── */
+    .fee-box {
+      background: var(--bg-card);
+      border: 1px solid rgba(108,99,255,.3);
+      border-radius: 14px;
+      padding: 1.5rem 2rem;
+      margin-top: 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1.5rem;
+    }
+    .fee-stat { text-align: center; }
+    .fee-stat-num { font-size: 2.2rem; font-weight: 800; color: var(--primary); line-height: 1; }
+    .fee-stat-label { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+
+    /* ── Security ── */
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .security-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+      display: flex;
+      gap: .75rem;
+      align-items: flex-start;
+    }
+    .security-check { color: var(--green); font-size: 1rem; margin-top: .1rem; }
+    .security-item h3 { font-size: .9rem; margin-bottom: .2rem; }
+    .security-item p { font-size: .8rem; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 0;
+      text-align: center;
+    }
+    footer p { font-size: .85rem; color: var(--muted); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      nav .nav-links { display: none; }
+      .hero-ctas { flex-direction: column; align-items: center; }
+      section { padding: 3.5rem 0; }
+    }
+
+    /* ── Misc ── */
+    .section-tag {
+      display: inline-block;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--primary);
+      margin-bottom: .5rem;
+    }
+    .text-muted { color: var(--muted); }
+    .mt-1 { margin-top: .5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .mt-3 { margin-top: 1.5rem; }
+    .highlight { color: var(--primary); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    th, td { padding: .75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); font-size: .875rem; }
+    th { font-weight: 600; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+    tr:last-child td { border-bottom: none; }
+    td code { font-size: .78rem; }
+    .table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  </style>
+</head>
+<body>
+
+<!-- ─────────────────── NAV ─────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon"><span></span></div>
+      Arc Swap
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#tokens">Tokens</a></li>
+      <li><a href="#api">API</a></li>
+      <li><a href="#setup">Setup</a></li>
+      <li><a href="#security">Security</a></li>
+    </ul>
+    <span class="nav-badge">Testnet</span>
+  </div>
+</nav>
+
+<!-- ─────────────────── HERO ─────────────────── -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-eyebrow">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><circle cx="6" cy="6" r="6"/></svg>
+      Arc Network Testnet · Chain ID 5042002
+    </div>
+    <h1>The Token Swap DApp<br/>for Arc Network</h1>
+    <p class="hero-sub">A full-stack decentralised application for swapping USDC, EURC, and cirBTC on Arc Network Testnet — powered by Circle's App Kit SDK, with on-chain fee collection and real-time analytics.</p>
+    <div class="hero-ctas">
+      <a href="#setup" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Get Started
+      </a>
+      <a href="https://github.com/osr21/arc-swap" target="_blank" class="btn btn-outline">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+    <div class="chain-pill">Arc Testnet · RPC: rpc.testnet.arc.network · Explorer: testnet.arcscan.app</div>
+  </div>
+</section>
+
+<!-- ─────────────────── FEATURES ─────────────────── -->
+<section id="features">
+  <div class="container">
+    <span class="section-tag">Features</span>
+    <h2>Everything you need to swap on Arc</h2>
+    <p>Arc Swap is a production-grade DApp with a hardened Express API backend and a React frontend. Every interaction is validated on both ends.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(108,99,255,.15);">🔄</div>
+        <h3>Token Swaps</h3>
+        <p>Swap USDC, EURC, and cirBTC on Arc Network Testnet via Circle's App Kit SDK. Real-time quotes before every execution.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,212,170,.12);">⚡</div>
+        <h3>Live Quotes</h3>
+        <p>Get precise pre-swap estimates with exchange rate, platform fee breakdown, and estimated output before committing any transaction.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(245,158,11,.12);">📊</div>
+        <h3>Price Impact Warnings</h3>
+        <p>Every quote calculates price impact and displays it colour-coded: green (&lt;1%), amber (1–3%), red (&gt;3%). High-impact swaps show prominent warnings.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(239,68,68,.12);">⚙️</div>
+        <h3>Slippage Tolerance</h3>
+        <p>Choose from 0.1%, 0.5%, or 1.0% slippage presets or enter a custom value. Settings are applied per-session with a visual badge when changed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(34,197,94,.12);">💰</div>
+        <h3>Platform Fee Collection</h3>
+        <p>A 0.3% (30 BPS) platform fee is deducted from every swap. Fees are collected to a secure backend wallet and tracked in a dedicated dashboard.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(168,85,247,.15);">🗃️</div>
+        <h3>Persistent Swap History</h3>
+        <p>Every executed swap is written to PostgreSQL via Drizzle ORM. History survives server restarts and is available via REST API.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(59,130,246,.15);">🔗</div>
+        <h3>WalletConnect Support</h3>
+        <p>Connects with MetaMask (injected) out of the box. WalletConnect v2 is supported when a project ID is configured, enabling mobile wallets.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(108,99,255,.15);">📈</div>
+        <h3>Fee Earnings Dashboard</h3>
+        <p>A real-time dashboard displays cumulative fee totals per token and a chronological log of every fee event, auto-refreshing every 30 seconds.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,212,170,.12);">🛡️</div>
+        <h3>Security Hardened</h3>
+        <p>CORS whitelisting, rate limiting (estimate: 30/min, execute: 5/min, global: 300/15min), input validation, and no silent error fallbacks.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── ARCHITECTURE ─────────────────── -->
+<section id="architecture">
+  <div class="container">
+    <span class="section-tag">Architecture</span>
+    <h2>Full-stack monorepo</h2>
+    <p>Arc Swap is organised as a pnpm workspace monorepo. The API server and frontend are independent artifacts sharing a typed contract via code-generated hooks.</p>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-label">API Server</div>
+        <ul class="arch-items">
+          <li>Express 5 (TypeScript)</li>
+          <li>Pino structured logging</li>
+          <li>express-rate-limit</li>
+          <li>CORS whitelist</li>
+          <li>esbuild bundle</li>
+          <li>Port 8080 → <code>/api</code></li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <div class="arch-label">Frontend</div>
+        <ul class="arch-items">
+          <li>React 18 + Vite</li>
+          <li>wagmi v3 + viem v2</li>
+          <li>TanStack Query</li>
+          <li>Tailwind CSS + shadcn/ui</li>
+          <li>Circle App Kit SDK</li>
+          <li>Port 19345 → <code>/</code></li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <div class="arch-label">Database</div>
+        <ul class="arch-items">
+          <li>PostgreSQL</li>
+          <li>Drizzle ORM</li>
+          <li>drizzle-zod schemas</li>
+          <li>swap_history table</li>
+          <li>fee_earnings table</li>
+          <li>Drizzle Kit migrations</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <div class="arch-label">Shared Libs</div>
+        <ul class="arch-items">
+          <li>@workspace/db</li>
+          <li>@workspace/api-spec</li>
+          <li>@workspace/api-client-react</li>
+          <li>@workspace/api-zod</li>
+          <li>Orval codegen</li>
+          <li>OpenAPI 3.1 contract</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <div class="arch-label">Blockchain</div>
+        <ul class="arch-items">
+          <li>Arc Network Testnet</li>
+          <li>Chain ID 5042002</li>
+          <li>Circle App Kit SDK</li>
+          <li>ERC-20 transfers</li>
+          <li>MetaMask (injected)</li>
+          <li>WalletConnect v2</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <div class="arch-label">Infrastructure</div>
+        <ul class="arch-items">
+          <li>pnpm workspaces</li>
+          <li>Node.js 24</li>
+          <li>TypeScript 5.9</li>
+          <li>Reverse proxy routing</li>
+          <li>Environment secrets</li>
+          <li>Replit deployment</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="mt-3">Request Flow</h3>
+    <pre>User Wallet
+  │  connects via MetaMask / WalletConnect
+  ↓
+React Frontend (Vite)
+  │  wagmi hooks → useEstimateSwap / useExecuteSwap (generated)
+  │  1. Fee transfer: user sends 0.3% → fee wallet (ERC-20 approve + transferFrom)
+  │  2. Swap call: effectiveAmountIn sent to Circle App Kit
+  ↓
+Express API  /api/swap/estimate  /api/swap/execute
+  │  validates input, checks rate limit, calculates fee
+  │  calls Circle App Kit → Arc Testnet RPC
+  │  writes SwapHistory + FeeEarning records to Postgres
+  ↓
+Arc Network Testnet  (Chain ID 5042002)
+  └─ transaction confirmed → explorerUrl returned</pre>
+  </div>
+</section>
+
+<!-- ─────────────────── TOKENS ─────────────────── -->
+<section id="tokens">
+  <div class="container">
+    <span class="section-tag">Tokens</span>
+    <h2>Supported tokens</h2>
+    <p>All tokens are ERC-20 contracts deployed on Arc Network Testnet. Obtain testnet balances from the Circle faucet or Arc testnet faucet.</p>
+
+    <div class="token-grid">
+      <div class="token-card">
+        <div class="token-symbol" style="color:var(--primary)">USDC</div>
+        <div>USD Coin · <span style="color:var(--muted)">6 decimals</span></div>
+        <div class="token-addr">0x3600000000000000000000000000000000000000</div>
+      </div>
+      <div class="token-card">
+        <div class="token-symbol" style="color:var(--accent)">EURC</div>
+        <div>Euro Coin · <span style="color:var(--muted)">6 decimals</span></div>
+        <div class="token-addr">0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a</div>
+      </div>
+      <div class="token-card">
+        <div class="token-symbol" style="color:var(--amber)">cirBTC</div>
+        <div>Circle BTC · <span style="color:var(--muted)">8 decimals</span></div>
+        <div class="token-addr">Available via Circle App Kit</div>
+      </div>
+    </div>
+
+    <h3 class="mt-3">Network Details</h3>
+    <div class="table-wrap mt-2">
+      <table>
+        <thead><tr><th>Property</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Network Name</td><td>Arc Testnet</td></tr>
+          <tr><td>Chain ID</td><td><code>5042002</code></td></tr>
+          <tr><td>RPC URL</td><td><code>https://rpc.testnet.arc.network</code></td></tr>
+          <tr><td>Block Explorer</td><td><code>https://testnet.arcscan.app</code></td></tr>
+          <tr><td>Native Currency</td><td>ETH (18 decimals)</td></tr>
+          <tr><td>Fee Wallet</td><td><code>0xf4a14B84108885AF2f18843DD18761706e47d5F6</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── API ─────────────────── -->
+<section id="api">
+  <div class="container">
+    <span class="section-tag">API Reference</span>
+    <h2>REST Endpoints</h2>
+    <p>All endpoints are prefixed with <code>/api</code>. The spec is defined in OpenAPI 3.1 and client hooks are generated via Orval.</p>
+
+    <div style="margin-top:2rem;">
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/api/healthz</span>
+          <span class="endpoint-desc">Health check</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Returns server status. Used by the proxy for health checks.</p>
+          <pre>{ "status": "ok" }</pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/api/swap/estimate</span>
+          <span class="endpoint-desc">Get a swap quote · 30 req/min</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Returns a pre-swap quote including platform fee deduction, estimated output, exchange rate, and price impact. Does not execute any transaction.</p>
+          <pre><span style="color:var(--muted)">// Request</span>
+{
+  "tokenIn":  "USDC",
+  "tokenOut": "EURC",
+  "amountIn": "10.00"
+}
+
+<span style="color:var(--muted)">// Response</span>
+{
+  "tokenIn":           "USDC",
+  "tokenOut":          "EURC",
+  "amountIn":          "10.00",
+  "effectiveAmountIn": "9.97",       <span style="color:var(--muted)">// after 0.3% fee</span>
+  "estimatedAmountOut":"9.94",
+  "exchangeRate":      "0.997000",
+  "fee":               "0.000000",   <span style="color:var(--muted)">// network gas</span>
+  "platformFee":       "0.030000",   <span style="color:var(--muted)">// 0.3% of amountIn</span>
+  "platformFeeAddress":"0xf4a1...d5F6",
+  "priceImpact":       "0.30"        <span style="color:var(--muted)">// %</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/api/swap/execute</span>
+          <span class="endpoint-desc">Execute a swap · 5 req/min</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Executes the swap using the backend wallet via Circle App Kit. Persists the swap record and fee event to the database.</p>
+          <pre><span style="color:var(--muted)">// Request (same shape as estimate)</span>
+{ "tokenIn": "USDC", "tokenOut": "EURC", "amountIn": "10.00" }
+
+<span style="color:var(--muted)">// Response</span>
+{
+  "success":          true,
+  "transactionHash":  "0xabc123...",
+  "explorerUrl":      "https://testnet.arcscan.app/tx/0xabc123...",
+  "tokenIn":          "USDC",
+  "tokenOut":         "EURC",
+  "amountIn":         "9.97",
+  "amountOut":        "9.94",
+  "timestamp":        "2026-05-14T04:32:00.000Z"
+}</pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/api/swap/history</span>
+          <span class="endpoint-desc">Swap history (DB-backed)</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Returns the 50 most recent swaps from PostgreSQL, ordered by most recent first.</p>
+          <pre>{ "swaps": [ ...SwapResult ] }</pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/api/wallet/balances</span>
+          <span class="endpoint-desc">Token balances</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Returns USDC, EURC, and cirBTC balances for a given address (or the backend wallet if omitted).</p>
+          <pre>GET /api/wallet/balances?address=0x1234...
+
+{
+  "address":  "0x1234...",
+  "balances": [
+    { "token": "USDC",   "balance": "7.461800", "symbol": "USDC" },
+    { "token": "EURC",   "balance": "0.000000", "symbol": "EURC" },
+    { "token": "cirBTC", "balance": "0.000000", "symbol": "cirBTC" }
+  ],
+  "network": "Arc Testnet"
+}</pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/api/fees</span>
+          <span class="endpoint-desc">Platform fee earnings</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Returns cumulative fee totals grouped by token and a list of the 20 most recent fee events.</p>
+          <pre>{
+  "totals": [
+    { "token": "USDC", "totalFee": "0.150000", "eventCount": 5 }
+  ],
+  "recent": [
+    {
+      "id": 1,
+      "token": "USDC",
+      "feeAmount": "0.030000",
+      "transactionHash": "0xabc...",
+      "swapAmountIn": "10.00",
+      "createdAt": "2026-05-14T04:32:00.000Z"
+    }
+  ]
+}</pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/api/config</span>
+          <span class="endpoint-desc">Client configuration</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Returns public configuration values consumed by the frontend on startup.</p>
+          <pre>{
+  "feeWalletAddress": "0xf4a14B84108885AF2f18843DD18761706e47d5F6",
+  "platformFeeBps": 30
+}</pre>
+        </div>
+      </div>
+
+    </div>
+
+    <h3 class="mt-3">Rate Limits</h3>
+    <div class="table-wrap mt-2">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Limit</th><th>Window</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /api/swap/estimate</code></td><td>30 requests</td><td>1 minute</td></tr>
+          <tr><td><code>POST /api/swap/execute</code></td><td>5 requests</td><td>1 minute</td></tr>
+          <tr><td>All endpoints (global)</td><td>300 requests</td><td>15 minutes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FEE MODEL ─────────────────── -->
+<section id="fee-model">
+  <div class="container">
+    <span class="section-tag">Fee Model</span>
+    <h2>Platform fee structure</h2>
+    <p>Arc Swap collects a flat 0.3% platform fee on every swap. The fee is deducted from <code>amountIn</code> before the swap is executed, so the displayed output always reflects the post-fee amount.</p>
+
+    <div class="fee-box">
+      <div class="fee-stat">
+        <div class="fee-stat-num">0.3%</div>
+        <div class="fee-stat-label">Platform fee (30 BPS)</div>
+      </div>
+      <div class="fee-stat">
+        <div class="fee-stat-num">ERC-20</div>
+        <div class="fee-stat-label">On-chain transfer</div>
+      </div>
+      <div class="fee-stat">
+        <div class="fee-stat-num">DB</div>
+        <div class="fee-stat-label">Persisted per swap</div>
+      </div>
+      <div class="fee-stat">
+        <div class="fee-stat-num">30s</div>
+        <div class="fee-stat-label">Dashboard refresh</div>
+      </div>
+    </div>
+
+    <h3 class="mt-3">Fee flow</h3>
+    <pre>amountIn = 100 USDC
+platformFee = 100 × 0.003 = 0.30 USDC  → fee wallet
+effectiveAmountIn = 99.70 USDC          → Circle App Kit swap
+estimatedAmountOut ≈ 99.40 EURC         → user receives</pre>
+  </div>
+</section>
+
+<!-- ─────────────────── SETUP ─────────────────── -->
+<section id="setup">
+  <div class="container">
+    <span class="section-tag">Setup</span>
+    <h2>Getting started</h2>
+    <p>The project runs on Node.js 24 in a pnpm workspace. All commands should be run from the repo root.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Clone and install</h3>
+          <pre>git clone https://github.com/osr21/arc-swap.git
+cd arc-swap
+pnpm install</pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Configure environment secrets</h3>
+          <p>Create a <code>.env</code> file or set the following secrets in your deployment environment:</p>
+          <pre>DATABASE_URL=postgresql://user:pass@host:5432/dbname
+CIRCLE_KIT_KEY=your_circle_app_kit_key
+WALLET_PRIVATE_KEY=0xYOUR_BACKEND_WALLET_PRIVATE_KEY
+SESSION_SECRET=random_32_char_string
+
+# Optional — enables WalletConnect in the frontend
+VITE_WALLETCONNECT_PROJECT_ID=your_project_id</pre>
+          <p class="mt-1">Get a <strong>Circle App Kit key</strong> at <a href="https://console.circle.com" target="_blank">console.circle.com</a>. Get a free <strong>WalletConnect Project ID</strong> at <a href="https://cloud.walletconnect.com" target="_blank">cloud.walletconnect.com</a>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Push the database schema</h3>
+          <pre>pnpm --filter @workspace/db run push</pre>
+          <p class="mt-1">This creates the <code>swap_history</code> and <code>fee_earnings</code> tables using Drizzle Kit.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h3>Run in development</h3>
+          <pre># API server (port 8080)
+pnpm --filter @workspace/api-server run dev
+
+# Frontend (port 19345)
+pnpm --filter @workspace/arc-swap run dev</pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h3>Add Arc Testnet to MetaMask</h3>
+          <p>The DApp will prompt you to add the network automatically, or add it manually:</p>
+          <div class="table-wrap mt-2">
+            <table>
+              <tbody>
+                <tr><td>Network Name</td><td>Arc Testnet</td></tr>
+                <tr><td>Chain ID</td><td><code>5042002</code></td></tr>
+                <tr><td>RPC URL</td><td><code>https://rpc.testnet.arc.network</code></td></tr>
+                <tr><td>Explorer</td><td><code>https://testnet.arcscan.app</code></td></tr>
+                <tr><td>Currency Symbol</td><td>ETH</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h3>Useful development commands</h3>
+          <pre># Full typecheck (libs + all packages)
+pnpm run typecheck
+
+# Regenerate API hooks from OpenAPI spec
+pnpm --filter @workspace/api-spec run codegen
+
+# Build API server
+pnpm --filter @workspace/api-server run build
+
+# Schema changes → push to DB
+pnpm --filter @workspace/db run push</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── SECURITY ─────────────────── -->
+<section id="security">
+  <div class="container">
+    <span class="section-tag">Security</span>
+    <h2>Security model</h2>
+    <p>Arc Swap implements multiple layers of protection on both the client and server. No secrets are ever sent to the frontend.</p>
+
+    <div class="security-grid">
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>CORS Whitelist</h3>
+          <p>Only requests from configured Replit domains (and localhost in dev) are accepted. All other origins are rejected.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Rate Limiting</h3>
+          <p>Three tiers: estimate (30/min), execute (5/min), global (300/15min) — preventing abuse and front-running.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Input Validation</h3>
+          <p>Token symbols are validated against an allowlist. Amounts are checked for range (0.01–1,000,000) and numeric validity server-side.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Private Key Isolation</h3>
+          <p>The backend wallet private key is stored as an environment secret and normalised at runtime. It is never logged or returned to clients.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Structured Logging</h3>
+          <p>Pino logger (never <code>console.log</code>) with request/response serialisers that strip sensitive fields before writing to stdout.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Trust Proxy</h3>
+          <p>Express <code>trust proxy</code> is enabled so rate limiting correctly identifies clients behind Replit's reverse proxy.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Zod Schema Validation</h3>
+          <p>API responses are validated against auto-generated Zod schemas before being returned, catching contract drift at runtime.</p>
+        </div>
+      </div>
+      <div class="security-item">
+        <span class="security-check">✓</span>
+        <div>
+          <h3>Explicit Errors</h3>
+          <p>No silent fallbacks. Every failure surface is explicit — from invalid tokens to swap execution failures — with structured error responses.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FOOTER ─────────────────── -->
+<footer>
+  <div class="container">
+    <div style="display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:1rem;">
+      <div class="nav-logo-icon" style="width:28px;height:28px;border-radius:8px;"><span style="width:10px;height:10px;"></span></div>
+      <strong style="font-size:.95rem;">Arc Swap</strong>
+    </div>
+    <p>Built on <a href="https://testnet.arcscan.app" target="_blank">Arc Network Testnet</a> · Powered by <a href="https://www.circle.com/en/developers" target="_blank">Circle App Kit</a></p>
+    <p class="mt-1"><a href="https://github.com/osr21/arc-swap" target="_blank">github.com/osr21/arc-swap</a></p>
+    <p style="margin-top:1.5rem;font-size:.78rem;">This is a testnet application. Do not use real funds.</p>
+  </div>
+</footer>
+
+</body>
+</html>
