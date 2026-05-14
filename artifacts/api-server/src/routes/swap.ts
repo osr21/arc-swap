@@ -2,10 +2,11 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
-import { db, swapHistoryTable } from "@workspace/db";
+import { db, swapHistoryTable, feeEarningsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
-import { calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
+import { PLATFORM_FEE_BPS, calcPlatformFee, getFeeWalletAddress } from "../lib/fee";
 import { requireApiKey } from "../middleware/require-api-key";
+import { requireSameOrigin } from "../middleware/require-same-origin";
 
 const router = Router();
 const kit = new AppKit();
@@ -58,6 +59,14 @@ const estimateLimiter = rateLimit({
   message: { error: "Too many quote requests — please wait a moment" },
 });
 
+const executeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many swap requests — please wait a minute" },
+});
+
 router.post("/swap/estimate", estimateLimiter, async (req, res) => {
   const { tokenIn, tokenOut, amountIn } = req.body as { tokenIn: Token; tokenOut: Token; amountIn: string };
 
@@ -107,6 +116,68 @@ router.post("/swap/estimate", estimateLimiter, async (req, res) => {
     const msg = err instanceof Error ? err.message : String(err);
     req.log.error({ err }, "Estimate swap failed");
     res.status(500).json({ error: "Failed to estimate swap", details: msg });
+  }
+});
+
+router.post("/swap/execute", requireSameOrigin, executeLimiter, async (req, res) => {
+  const { tokenIn, tokenOut, amountIn } = req.body as { tokenIn: Token; tokenOut: Token; amountIn: string };
+
+  const validationError = validateSwapInput(tokenIn, tokenOut, amountIn);
+  if (validationError) { res.status(400).json({ error: validationError }); return; }
+
+  try {
+    const effectiveAmountIn = amountIn;
+    const platformFee = ((parseFloat(amountIn) * PLATFORM_FEE_BPS) / 10_000).toFixed(6);
+    const feeWallet = await getFeeWalletAddress();
+    req.log.info({ tokenIn, tokenOut, amountIn, platformFee, feeWallet }, "Executing swap server-side");
+
+    const adapter = getAdapter();
+    const result = await kit.swap({
+      from: { adapter, chain: "Arc_Testnet" },
+      tokenIn,
+      tokenOut,
+      amountIn: effectiveAmountIn,
+      config: { kitKey: getKitKey() },
+    });
+
+    const r = result as {
+      txHash?: string;
+      transactionHash?: string;
+      hash?: string;
+      explorerUrl?: string;
+      amountOut?: string;
+      amount?: string;
+    };
+
+    const txHash = r.txHash ?? r.transactionHash ?? r.hash ?? "";
+    const explorerUrl = r.explorerUrl ?? `https://testnet.arcscan.app/tx/${txHash}`;
+    const amountOut = r.amountOut ?? r.amount ?? "0";
+    const priceImpact = calcPriceImpact(effectiveAmountIn, amountOut);
+
+    await Promise.all([
+      db.insert(swapHistoryTable).values({
+        transactionHash: txHash,
+        explorerUrl,
+        tokenIn,
+        tokenOut,
+        amountIn: effectiveAmountIn,
+        amountOut,
+        platformFee,
+        priceImpact,
+      }),
+      db.insert(feeEarningsTable).values({
+        token: tokenIn,
+        feeAmount: platformFee,
+        transactionHash: txHash,
+        swapAmountIn: amountIn,
+      }),
+    ]);
+
+    res.json({ success: true, transactionHash: txHash, explorerUrl, amountOut });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    req.log.error({ err }, "Execute swap failed");
+    res.status(500).json({ error: "Swap failed", details: msg });
   }
 });
 

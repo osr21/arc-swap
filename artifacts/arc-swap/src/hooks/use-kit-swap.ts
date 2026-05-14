@@ -79,14 +79,8 @@ export function useKitSwap() {
       const effectiveBps = Math.min(PLATFORM_FEE_BPS, MAX_FEE_BPS);
       const tokenInfo = TOKEN_INFO[params.tokenIn];
 
-      let feeAmountStr = "0";
-
       if (tokenInfo && effectiveBps > 0) {
         const feeRaw = calcFeeUnits(params.amountIn, tokenInfo.decimals, effectiveBps);
-        const effectiveRaw = parseUnits(params.amountIn, tokenInfo.decimals) - feeRaw;
-
-        feeAmountStr = (Number(feeRaw) / 10 ** tokenInfo.decimals).toFixed(tokenInfo.decimals);
-        const effectiveAmountIn = (Number(effectiveRaw) / 10 ** tokenInfo.decimals).toFixed(tokenInfo.decimals);
 
         await walletClient.writeContract({
           address: tokenInfo.address,
@@ -106,60 +100,35 @@ export function useKitSwap() {
           args: [FEE_WALLET_ADDRESS, feeRaw],
           account: userAddress,
         });
-
-        params = { ...params, amountIn: effectiveAmountIn };
       }
 
-      const { createViemAdapterFromProvider } = await import("@circle-fin/adapter-viem-v2");
-      const { AppKit } = await import("@circle-fin/app-kit");
-
-      const adapter = await createViemAdapterFromProvider({
-        provider: provider as Parameters<typeof createViemAdapterFromProvider>[0]["provider"],
+      const res = await fetch("/api/swap/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenIn: params.tokenIn,
+          tokenOut: params.tokenOut,
+          amountIn: params.amountIn,
+        }),
       });
 
-      const rawKitKey = import.meta.env.VITE_CIRCLE_KIT_KEY as string | undefined;
-      if (!rawKitKey) {
-        throw new Error("Circle Kit Key is not configured. Set VITE_CIRCLE_KIT_KEY in your environment.");
+      const data = (await res.json()) as {
+        success?: boolean;
+        transactionHash?: string;
+        explorerUrl?: string;
+        amountOut?: string;
+        error?: string;
+        details?: string;
+      };
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.details ?? data.error ?? "Swap failed");
       }
-      const kitKey = rawKitKey.startsWith("KIT_KEY:") ? rawKitKey : `KIT_KEY:${rawKitKey}`;
 
-      const kit = new AppKit();
-
-      const slippageBps = params.slippageBps ?? 50;
-
-      const result = await (
-        kit as unknown as {
-          swap: (p: {
-            from: { adapter: typeof adapter; chain: string };
-            tokenIn: string;
-            tokenOut: string;
-            amountIn: string;
-            slippageBps?: number;
-            config: { kitKey: string };
-          }) => Promise<{
-            txHash?: string;
-            transactionHash?: string;
-            hash?: string;
-            explorerUrl?: string;
-            estimatedOutput?: { amount?: string };
-            amountOut?: string;
-          }>;
-        }
-      ).swap({
-        from: { adapter, chain: "Arc_Testnet" },
-        tokenIn: params.tokenIn,
-        tokenOut: params.tokenOut,
-        amountIn: params.amountIn,
-        slippageBps,
-        config: { kitKey },
-      });
-
-      const txHash = result?.txHash ?? result?.transactionHash ?? result?.hash ?? "";
-      const amountOut = result?.estimatedOutput?.amount ?? result?.amountOut ?? "0";
-      const rawExplorerUrl = result?.explorerUrl ?? `${ALLOWED_EXPLORER_ORIGIN}/tx/${txHash}`;
-      const explorerUrl = safeSanitizeExplorerUrl(rawExplorerUrl, txHash);
-
-      void feeAmountStr;
+      const txHash = data.transactionHash ?? "";
+      const rawUrl = data.explorerUrl ?? `${ALLOWED_EXPLORER_ORIGIN}/tx/${txHash}`;
+      const explorerUrl = safeSanitizeExplorerUrl(rawUrl, txHash);
+      const amountOut = data.amountOut ?? "0";
 
       return { success: true, transactionHash: txHash, explorerUrl, amountOut };
     } catch (err: unknown) {
