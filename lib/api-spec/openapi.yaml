@@ -14,8 +14,11 @@ tags:
     description: Token swap operations
   - name: wallet
     description: Wallet balance operations
-  - name: fees
-    description: Platform fee earnings
+  - name: history
+    description: Swap history operations
+  - name: pool
+    description: Liquidity pool operations
+
 paths:
   /healthz:
     get:
@@ -36,7 +39,7 @@ paths:
       operationId: estimateSwap
       tags: [swap]
       summary: Estimate swap rate
-      description: Get a pre-swap estimate before executing
+      description: Get a pre-swap estimate with price impact and fee breakdown
       requestBody:
         required: true
         content:
@@ -63,19 +66,77 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /swap/execute:
+    post:
+      operationId: executeSwap
+      tags: [swap]
+      summary: Execute a token swap (backend peer-to-peer, fallback for cirBTC)
+      description: Execute the swap on-chain after user approval. Used for cirBTC pairs and when the AMM pool is not available.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwapExecuteRequest"
+      responses:
+        "200":
+          description: Swap executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /swap/record:
+    post:
+      operationId: recordSwap
+      tags: [swap]
+      summary: Record a completed on-chain router swap
+      description: Records a swap executed by the user directly through the Uniswap V2 router
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwapRecordRequest"
+      responses:
+        "200":
+          description: Swap recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /wallet/balances:
     get:
       operationId: getWalletBalances
       tags: [wallet]
       summary: Get wallet token balances
-      description: Returns USDC, EURC, and cirBTC balances for the given wallet address.
+      description: Returns USDC, EURC, and cirBTC balances for the given address
       parameters:
         - name: address
           in: query
           required: true
           schema:
             type: string
-          description: EVM wallet address to fetch balances for (0x...)
+          description: Wallet address (0x...)
       responses:
         "200":
           description: Wallet balances
@@ -83,6 +144,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WalletBalances"
+        "400":
+          description: Invalid address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
           content:
@@ -93,60 +160,143 @@ paths:
   /swap/history:
     get:
       operationId: getSwapHistory
-      tags: [swap]
-      summary: Get recent swap history
-      description: >
-        Returns the 50 most recent swaps. Requires a valid
-        ADMIN_API_KEY bearer token.
-      security:
-        - adminApiKey: []
+      tags: [history]
+      summary: Get swap transaction history
+      description: Returns the last 50 swap transactions across all users
       responses:
         "200":
-          description: Swap history
+          description: Swap history list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SwapHistory"
-        "403":
-          description: Forbidden — missing or invalid API key
+                type: array
+                items:
+                  $ref: "#/components/schemas/SwapHistoryItem"
+
+  /swap/stats:
+    get:
+      operationId: getSwapStats
+      tags: [swap]
+      summary: Get swap statistics
+      description: Returns aggregate stats — total volume, swap count, and popular pairs
+      responses:
+        "200":
+          description: Swap statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapStats"
+
+  /pool/info:
+    get:
+      operationId: getPoolInfo
+      tags: [pool]
+      summary: Get USDC/EURC pool info
+      description: Returns on-chain reserves, prices, TVL, and LP supply from the Uniswap V2 pair
+      responses:
+        "200":
+          description: Pool information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolInfo"
+        "503":
+          description: Pool not deployed
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /fees:
+  /pool/lp-balance:
     get:
-      operationId: getFeeEarnings
-      tags: [fees]
-      summary: Get platform fee earnings
-      description: >
-        Returns accumulated platform fee totals and recent fee events.
-        Requires a valid ADMIN_API_KEY bearer token.
-      security:
-        - adminApiKey: []
+      operationId: getLpBalance
+      tags: [pool]
+      summary: Get LP token balance for an address
+      description: Returns LP token balance and corresponding pooled token amounts
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Wallet address (0x...)
       responses:
         "200":
-          description: Fee earnings
+          description: LP balance
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FeeEarnings"
-        "403":
-          description: Forbidden — missing or invalid API key
+                $ref: "#/components/schemas/LpBalance"
+        "400":
+          description: Invalid address
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /pool/add:
+    post:
+      operationId: recordPoolAdd
+      tags: [pool]
+      summary: Record a liquidity add event
+      description: Records a liquidity addition after the user completes the on-chain transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LiquidityEventRequest"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /pool/remove:
+    post:
+      operationId: recordPoolRemove
+      tags: [pool]
+      summary: Record a liquidity remove event
+      description: Records a liquidity removal after the user completes the on-chain transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LiquidityEventRequest"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /pool/positions:
+    get:
+      operationId: getPoolPositions
+      tags: [pool]
+      summary: Get liquidity positions for an address
+      description: Returns the history of liquidity add/remove events for a wallet
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Positions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LiquidityPosition"
 
 components:
-  securitySchemes:
-    adminApiKey:
-      type: http
-      scheme: bearer
-      description: >
-        Bearer token for admin-only endpoints. Set the ADMIN_API_KEY
-        environment variable on the server and pass its value as the bearer token.
-
   schemas:
     HealthStatus:
       type: object
@@ -158,25 +308,21 @@ components:
 
     SwapRequest:
       type: object
+      required: [tokenIn, tokenOut, amountIn]
       properties:
         tokenIn:
           type: string
-          enum: [USDC, EURC, cirBTC]
-          description: Token to swap from
+          description: Input token symbol (USDC, EURC, cirBTC)
         tokenOut:
           type: string
-          enum: [USDC, EURC, cirBTC]
-          description: Token to swap to
+          description: Output token symbol (USDC, EURC, cirBTC)
         amountIn:
           type: string
-          description: Human-readable amount to swap (e.g. "1.00")
-      required:
-        - tokenIn
-        - tokenOut
-        - amountIn
+          description: Amount to swap as a decimal string
 
-    SwapEstimate:
+    SwapExecuteRequest:
       type: object
+      required: [tokenIn, tokenOut, amountIn, userAddress]
       properties:
         tokenIn:
           type: string
@@ -184,45 +330,14 @@ components:
           type: string
         amountIn:
           type: string
-        effectiveAmountIn:
+        userAddress:
           type: string
-          description: Amount actually swapped after platform fee deduction
-        estimatedAmountOut:
-          type: string
-        exchangeRate:
-          type: string
-        fee:
-          type: string
-        platformFee:
-          type: string
-          description: Platform fee deducted from amountIn (0.3%)
-        platformFeeAddress:
-          type: string
-          description: Wallet address that receives the platform fee
-        priceImpact:
-          type: string
-          description: Estimated price impact as a percentage
-      required:
-        - tokenIn
-        - tokenOut
-        - amountIn
-        - effectiveAmountIn
-        - estimatedAmountOut
-        - exchangeRate
-        - fee
-        - platformFee
-        - platformFeeAddress
-        - priceImpact
+          description: User's wallet address (0x...)
 
-    SwapResult:
+    SwapRecordRequest:
       type: object
+      required: [tokenIn, tokenOut, amountIn, amountOut, userAddress, txHash]
       properties:
-        success:
-          type: boolean
-        transactionHash:
-          type: string
-        explorerUrl:
-          type: string
         tokenIn:
           type: string
         tokenOut:
@@ -231,20 +346,72 @@ components:
           type: string
         amountOut:
           type: string
-        timestamp:
+        userAddress:
           type: string
-      required:
-        - success
-        - transactionHash
-        - explorerUrl
-        - tokenIn
-        - tokenOut
-        - amountIn
-        - amountOut
-        - timestamp
+        txHash:
+          type: string
+
+    SwapEstimate:
+      type: object
+      required: [tokenIn, tokenOut, amountIn, estimatedAmountOut, priceImpact, platformFee, effectiveAmountIn, rate]
+      properties:
+        tokenIn:
+          type: string
+        tokenOut:
+          type: string
+        amountIn:
+          type: string
+        estimatedAmountOut:
+          type: string
+        priceImpact:
+          type: string
+          description: Price impact as a percentage string
+        platformFee:
+          type: string
+          description: Platform fee amount
+        effectiveAmountIn:
+          type: string
+          description: Amount after fee deduction
+        rate:
+          type: string
+          description: Exchange rate
+
+    SwapResult:
+      type: object
+      required: [success, transactionHash, explorerUrl, amountOut, fee]
+      properties:
+        success:
+          type: boolean
+        transactionHash:
+          type: string
+        explorerUrl:
+          type: string
+        amountOut:
+          type: string
+        fee:
+          type: string
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    TokenBalance:
+      type: object
+      required: [token, symbol, balance]
+      properties:
+        token:
+          type: string
+        symbol:
+          type: string
+        balance:
+          type: string
 
     WalletBalances:
       type: object
+      required: [address, balances, network]
       properties:
         address:
           type: string
@@ -254,93 +421,145 @@ components:
             $ref: "#/components/schemas/TokenBalance"
         network:
           type: string
-      required:
-        - address
-        - balances
-        - network
 
-    TokenBalance:
+    SwapHistoryItem:
       type: object
-      properties:
-        token:
-          type: string
-        balance:
-          type: string
-        symbol:
-          type: string
-      required:
-        - token
-        - balance
-        - symbol
-
-    SwapHistory:
-      type: object
-      properties:
-        swaps:
-          type: array
-          items:
-            $ref: "#/components/schemas/SwapResult"
-      required:
-        - swaps
-
-    FeeEarnings:
-      type: object
-      properties:
-        totals:
-          type: array
-          items:
-            $ref: "#/components/schemas/FeeTotalByToken"
-        recent:
-          type: array
-          items:
-            $ref: "#/components/schemas/FeeEvent"
-      required:
-        - totals
-        - recent
-
-    FeeTotalByToken:
-      type: object
-      properties:
-        token:
-          type: string
-        totalFee:
-          type: string
-        eventCount:
-          type: number
-      required:
-        - token
-        - totalFee
-        - eventCount
-
-    FeeEvent:
-      type: object
+      required: [id, tokenIn, tokenOut, amountIn, amountOut, userAddress, transactionHash, status, createdAt]
       properties:
         id:
-          type: number
-        token:
+          type: integer
+        tokenIn:
           type: string
-        feeAmount:
+        tokenOut:
+          type: string
+        amountIn:
+          type: string
+        amountOut:
+          type: string
+        userAddress:
           type: string
         transactionHash:
           type: string
-        swapAmountIn:
+        status:
           type: string
         createdAt:
           type: string
-      required:
-        - id
-        - token
-        - feeAmount
-        - transactionHash
-        - swapAmountIn
-        - createdAt
+
+    SwapStats:
+      type: object
+      required: [totalSwaps, totalVolume, popularPairs]
+      properties:
+        totalSwaps:
+          type: integer
+        totalVolume:
+          type: string
+        popularPairs:
+          type: array
+          items:
+            $ref: "#/components/schemas/PairStat"
+
+    PairStat:
+      type: object
+      required: [tokenIn, tokenOut, count]
+      properties:
+        tokenIn:
+          type: string
+        tokenOut:
+          type: string
+        count:
+          type: integer
+
+    PoolInfo:
+      type: object
+      required: [pairAddress, token0, token1, reserves, prices, tvlUsdc, totalLpSupply]
+      properties:
+        pairAddress:
+          type: string
+        token0:
+          type: string
+        token1:
+          type: string
+        reserves:
+          type: object
+          properties:
+            USDC:
+              type: string
+            EURC:
+              type: string
+        prices:
+          type: object
+          properties:
+            USDCtoEURC:
+              type: string
+            EURCtoUSDC:
+              type: string
+        tvlUsdc:
+          type: string
+        totalLpSupply:
+          type: string
+
+    LpBalance:
+      type: object
+      required: [address, lpBalance, sharePercent, pooledTokens]
+      properties:
+        address:
+          type: string
+        lpBalance:
+          type: string
+        sharePercent:
+          type: string
+        pooledTokens:
+          type: object
+          properties:
+            USDC:
+              type: string
+            EURC:
+              type: string
+
+    LiquidityEventRequest:
+      type: object
+      required: [userAddress, txHash, amountA, amountB, lpTokenAmount]
+      properties:
+        userAddress:
+          type: string
+        txHash:
+          type: string
+        amountA:
+          type: string
+        amountB:
+          type: string
+        lpTokenAmount:
+          type: string
+
+    LiquidityPosition:
+      type: object
+      required: [id, type, tokenA, tokenB, amountA, amountB, lpTokenAmount, txHash, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [add, remove]
+        tokenA:
+          type: string
+        tokenB:
+          type: string
+        amountA:
+          type: string
+        amountB:
+          type: string
+        lpTokenAmount:
+          type: string
+        txHash:
+          type: string
+        createdAt:
+          type: string
 
     ErrorResponse:
       type: object
+      required: [error]
       properties:
         error:
           type: string
         details:
-          type: string
-      required:
-        - error
+          type: ["string", "null"]
