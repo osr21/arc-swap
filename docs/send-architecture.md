@@ -31,9 +31,6 @@
          |  (MetaMask popup — no gas)           |                            |
          |                                      |                            |
          |  3. POST /api/pay/execute            |                            |
-         |     { tokenIn, tokenOut, amount,     |                            |
-         |       senderAddress, recipient,       |                            |
-         |       permit: { deadline, v, r, s }} |                            |
          |─────────────────────────────────────→|                            |
          |                                      |  check backend balance      |
          |                                      |                            |
@@ -45,17 +42,19 @@
          |                                      |   pulls tokenIn from       |
          |                                      |   sender → backend         |
          |                                      |                            |
-         |                                      |── transfer() ─────────────→|
-         |                                      |   sends tokenOut from      |
-         |                                      |   backend → recipient      |
-         |                                      |                            |
-         |                                      |── memo() (best-effort) ───→|
-         |                                      |   emits UTF-8 bytes as     |
-         |                                      |   on-chain event log       |
+         |                                      |── Memo.memo(               |
+         |                                      |     target=tokenOut,       |
+         |                                      |     data=transfer(),       |
+         |                                      |     memoId, memoData) ────→|
+         |                                      |   ├─ CallFrom forwards     |
+         |                                      |   │  transfer to tokenOut  |
+         |                                      |   └─ emits Memo events     |
          |                                      |                            |
          |  4. { success, txHash, memoTxHash }  |                            |
          |←─────────────────────────────────────|                            |
   ```
+
+  > **Note:** Steps 3 (outbound transfer) and 4 (memo) are combined into a single atomic `Memo.memo()` call. `txHash` and `memoTxHash` reference the same transaction.
 
   ## EIP-2612 Permit
 
@@ -66,7 +65,7 @@
   ```typescript
   {
     name: "USDC",      // or "EURC"
-    version: "2",
+    version: "2",      // both tokens use version 2 on Arc Testnet
     chainId: 5042002n,
     verifyingContract: tokenAddress,
   }
@@ -86,7 +85,7 @@
   }
   ```
 
-  The nonce is read from the token contract (`nonces(owner)`) before signing, ensuring the permit is single-use and replay-protected.
+  The nonce is read from the token contract (`nonces(owner)`) before signing — single-use, replay-protected.
 
   ## Why Sequential Transactions (Not Multicall3From)
 
@@ -104,7 +103,70 @@
   The permit set `allowance[sender][backendWallet] = amount`.
   Inside the subcall, `msg.sender = Multicall3From`, so `allowance[sender][Multicall3From] = 0` → **revert**.
 
-  **Fix:** three direct backend-signed transactions where `msg.sender = backendWallet` throughout.
+  **Fix:** permit and transferFrom are direct backend-signed transactions where `msg.sender = backendWallet`.
+
+  The outbound transfer is wrapped in `Memo.memo()` which uses the `CallFrom` precompile internally — this correctly preserves `msg.sender = backendWallet` for the inner transfer call.
+
+  ## On-Chain Memo via Memo Contract
+
+  The Arc Memo contract (`0x5294E9927c3306DcBaDb03fe70b92e01cCede505`) is a **call wrapper** — it forwards an inner contract call via the `CallFrom` precompile (preserving `msg.sender`) and emits structured events around it.
+
+  **Correct ABI:**
+
+  ```solidity
+  function memo(
+      address target,
+      bytes calldata data,
+      bytes32 memoId,
+      bytes calldata memoData
+  ) external;
+  ```
+
+  **viem usage:**
+
+  ```typescript
+  const transferCalldata = encodeFunctionData({
+    abi: erc20Abi,
+    functionName: "transfer",
+    args: [recipientAddress, amountOut],
+  });
+
+  const memoId = `0x${BigInt(Date.now()).toString(16).padStart(64, "0")}` as `0x${string}`;
+
+  await walletClient.writeContract({
+    address: MEMO_ADDRESS,
+    abi: MEMO_ABI,
+    functionName: "memo",
+    args: [
+      tokenOut.address,                              // target
+      transferCalldata,                              // data forwarded to target
+      memoId,                                        // bytes32 identifier
+      toHex(Buffer.from(memoText, "utf8")),          // memoData
+    ],
+    gas: 200_000n,  // wraps an inner call — needs more gas than a plain transfer
+  });
+  ```
+
+  **Events emitted (in order):**
+  1. `BeforeMemo(memoIndex)` — before the inner call
+  2. Target contract events (e.g. USDC `Transfer`)
+  3. `Memo(sender, target, callDataHash, memoId, memo, memoIndex)` — after the inner call
+
+  Query by indexed `memoId` or `sender` to reconcile payments against memo records.
+
+  **Constraints:**
+  - Must be called directly from an EOA — intermediary contracts revert (sender spoofing not allowed)
+  - If the inner call reverts, the outer Memo tx also reverts (atomic)
+  - Do not use `STATICCALL`, `DELEGATECALL`, or call `CallFrom` directly from an EOA
+
+  ## ArcScan: Finding the Memo
+
+  On [testnet.arcscan.app](https://testnet.arcscan.app), open the transaction → **Logs** tab. You will see:
+  - A `BeforeMemo` log from the Memo contract
+  - The inner token `Transfer` log
+  - A `Memo` log with `memoId`, `memo` (your bytes), and `callDataHash`
+
+  The `memo` field in the Memo log contains your UTF-8 encoded memo bytes. Decode with `Buffer.from(memoHex.slice(2), "hex").toString("utf8")`.
 
   ## Rate Calculation
 
@@ -120,23 +182,6 @@
 
   All external fetch calls have an 8-second timeout.
 
-  ## On-Chain Memo
-
-  The Arc v0.7.2 Memo precompile (`0x5294E9927c3306DcBaDb03fe70b92e01cCede505`) accepts a `bytes` argument and emits it as an indexed on-chain event visible on ArcScan.
-
-  ```typescript
-  const memoBytes = toHex(Buffer.from(memoText, "utf8"));
-  await walletClient.writeContract({
-    address: "0x5294E9927c3306DcBaDb03fe70b92e01cCede505",
-    abi: [{ name: "memo", type: "function", inputs: [{ name: "data", type: "bytes" }] }],
-    functionName: "memo",
-    args: [memoBytes],
-    gas: 100_000n,
-  });
-  ```
-
-  The memo tx hash is stored in `payments.memo_transaction_hash` and shown as an ArcScan link in Send History. The call is fire-and-forget — failure is logged but never surfaced to the user.
-
   ## Database Schema
 
   ```sql
@@ -149,8 +194,8 @@
     amount_in             NUMERIC(30, 10) NOT NULL,
     amount_out            NUMERIC(30, 10) NOT NULL,
     memo                  TEXT,
-    transaction_hash      TEXT NOT NULL,       -- outbound transfer tx
-    memo_transaction_hash TEXT,               -- memo precompile tx (nullable)
+    transaction_hash      TEXT NOT NULL,       -- Memo.memo() tx (transfer + memo, atomic)
+    memo_transaction_hash TEXT,               -- same as transaction_hash (memo is embedded)
     status                TEXT NOT NULL DEFAULT 'success',
     created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -158,7 +203,7 @@
 
   ## Refund Logic
 
-  If the outbound transfer reverts after the inbound has settled, the backend immediately refunds the sender:
+  If the outbound Memo.memo() call reverts (inner transfer failed), the backend refunds the sender:
 
   ```typescript
   if (transferReceipt.status === "reverted") {
@@ -168,7 +213,6 @@
       args: [senderAddress, amountRaw],
       gas: 100_000n,
     });
-    // If refund also fails → logged at ERROR level for manual review
   }
   ```
 
@@ -179,4 +223,5 @@
   | `eth_estimateGas` is unreliable | All transactions use explicit `gas` values |
   | Receipts do not auto-throw on revert | Every receipt checked: `if (receipt.status === "reverted") throw` |
   | `createPair` requires ~5,000,000 gas | Deploy scripts use explicit high gas limits |
+  | Memo contract is a call wrapper, not a log emitter | Pass `(target, data, memoId, memoData)` — single `bytes` arg always reverts |
   
