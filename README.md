@@ -22,7 +22,7 @@
   - **LP share display** — live view of your pool share and position value
   - **Pool stats** — live TVL, reserve ratio, LP token supply from chain
 
-  ### Send (Gasless Cross-Asset Payments)
+  ### Send (Cross-Asset Payments)
   - **Cross-asset send** — send USDC, EURC, or cirBTC; recipient receives any other supported token at live market rates
   - **Gasless for sender** — uses EIP-2612 permit: user signs off-chain, backend submits and pays all gas
   - **On-chain memo** — optional memo attached to each payment via the Arc v0.7.2 Memo precompile, with a direct ArcScan link in Send History
