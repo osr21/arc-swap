@@ -23,12 +23,11 @@
   - **Pool stats** — live TVL, reserve ratio, LP token supply from chain
 
   ### Send (Cross-Asset Payments)
-  - **Cross-asset send** — send USDC, EURC, or cirBTC; recipient receives any other supported token at live market rates
-  - **Gasless for sender** — uses EIP-2612 permit: user signs off-chain, backend submits and pays all gas
-  - **On-chain memo** — optional memo attached to each payment via the Arc v0.7.2 Memo precompile, with a direct ArcScan link in Send History
-  - **Automatic refund** — if the outbound transfer ever reverts after funds are received, the sender is automatically refunded
-  - **Send History** — full record of sent payments with explorer links for both the payment and memo transactions
-
+  - **Cross-asset send** — send USDC, EURC, or cirBTC; recipient receives any other supported token
+    - **Non-custodial** — USDC↔EURC payments go directly through the Uniswap V2 Router; no backend holds funds at any point
+    - **One transaction** — the router's `to` parameter is set to the recipient address, so tokenOut arrives in the recipient's wallet in the same swap tx as the debit from the sender
+    - **Optional memo** — free-text note attached to the payment record (stored in DB; displayed in Send History)
+    - **Send History** — full record of sent payments with ArcScan explorer links
   ### General
   - **Stats dashboard** — total swaps, total volume, top trading pair
   - **Wallet balances** — live USDC, EURC view
@@ -86,52 +85,56 @@
 
   ## How the Send Feature Works
 
-  The Send feature enables gasless, cross-asset payments — the sender pays no gas at all.
+    The Send feature routes cross-asset payments directly through the Uniswap V2 Router — no backend intermediary holds funds at any point.
 
-  ### Payment flow (USDC → EURC example)
+    ### Payment flow (USDC → EURC example)
 
-  ```
-  User (off-chain)   Backend wallet                        Chain
-       |                   |                                 |
-       |-- sign EIP-2612 permit (no gas) ---------------→   |
-       |                   |                                 |
-       |                   |-- submit permit() tx --------→  |  (sets allowance)
-       |                   |-- submit transferFrom() tx --→  |  (pulls USDC from sender)
-       |                   |-- submit transfer() tx ------→  |  (sends EURC to recipient)
-       |                   |-- submit memo() tx ----------→  |  (on-chain memo, best-effort)
-  ```
+    ```
+    Sender wallet                       Uniswap V2 Router        Recipient wallet
+         |                                      |                       |
+         |-- approve(router, amountIn) ───────→ |                       |
+         |                                      |                       |
+         |-- swapExactTokensForTokens(          |                       |
+         |     amountIn,                        |                       |
+         |     amountOutMin,                    |                       |
+         |     [USDC, EURC],                    |                       |
+         |     recipientAddress,  ← key param   |                       |
+         |     deadline )────────────────────→  | pulls USDC from sender|
+         |                                      | pushes EURC ────────→ |
+    ```
 
-  ### Key design decisions
+    The critical detail is the **`to` parameter** in `swapExactTokensForTokens`. By passing the recipient's address instead of the sender's, the pool deposits tokenOut directly into the recipient's wallet as part of the same atomic transaction.
 
-  - **EIP-2612 permit** — the user signs a typed-data message granting the backend wallet a one-time allowance. No approve transaction, zero gas for the user.
-  - **Sequential transactions, not batched** — an earlier design used Multicall3From to batch all calls into one transaction. This was found to cause `transferFrom` reverts: inside a Multicall3From subcall, `msg.sender` is the Multicall3From contract address, not the backend EOA. Since the permit set `allowance[sender][backendWallet]`, the check `allowance[sender][Multicall3From]` returned 0 and reverted. The fix uses three direct backend-signed transactions instead.
-  - **Balance check before permit** — the backend checks it has sufficient output token balance *before* submitting the permit, so the user's EIP-2612 nonce is never consumed on a payment that will fail.
-  - **Memo is best-effort** — the memo tx is fire-and-forget after the payment settles. A memo precompile failure never blocks the payment.
-  - **Automatic refund** — if the outbound transfer (step 3) reverts after the inbound (step 2) has settled, the backend immediately attempts to refund the sender.
+    ### How cirBTC payments work
 
-  ### Rate sources
+    cirBTC has no deployed ERC-20 contract on Arc Testnet. Payments involving cirBTC (any direction) are **simulated**: the backend records the payment in the database at the live market rate but no on-chain transfer occurs. This is testnet-only behaviour.
 
-  | Pair | Source | Cache TTL |
-  |------|--------|-----------|
-  | USD → EUR | [Frankfurter API](https://www.frankfurter.app) | 5 min |
-  | BTC → USD | [CoinGecko API](https://www.coingecko.com/api) | 5 min |
-  | Derived pairs | Composed from above | 5 min |
+    ### Rate sources
 
-  ### Platform fee
+    | Pair | Source | Notes |
+    |------|--------|-------|
+    | USDC ↔ EURC | `getAmountsOut` on the Uniswap V2 Router | Pool price — exact match for execution |
+    | USDC ↔ cirBTC | [CoinGecko](https://www.coingecko.com/api) + [Frankfurter](https://www.frankfurter.app) | Market rate (cirBTC simulated) |
+    | EURC ↔ cirBTC | Composed from above | Market rate (cirBTC simulated) |
 
-  A **0.3%** fee is deducted from the input amount before conversion. The fee stays in the backend wallet to maintain liquidity.
+    The estimate shown for USDC↔EURC is fetched from the pool using `getAmountsOut` — the same math the router runs at execution, so the quote is accurate. A market-rate sanity check rejects pool quotes that deviate more than 5% from the Frankfurter benchmark.
 
+    ### Fees
+
+    The **0.3% Uniswap LP fee** is embedded in the pool swap and accrues to liquidity providers. There is no additional platform fee on USDC↔EURC payments.
   ---
 
   ## Security
 
-  - **EIP-2612 permit validation** — deadline, V, R, S fields are validated server-side before any on-chain call
-  - **Expired permit rejection** — deadline is checked against current server time; expired signatures are rejected before touching the chain
-  - **Liquidity pre-check** — backend balance is verified before the permit is submitted
-  - **Rate limiting** — all API endpoints are rate-limited (express-rate-limit)
-  - **Input sanitization** — amount strings are length-capped; addresses validated with `isAddress`
-  - **Error masking** — production errors return a generic message; full details are server-logged only
-
+    - **Replay protection** — `/pay/record` enforces txHash uniqueness; a given on-chain transaction can only be recorded once
+    - **Slippage guard** — payments use a 0.5% `amountOutMin`; transactions revert on-chain if the pool moves against the user before the tx mines
+    - **Receipt status check** — every write on Arc Testnet is followed by an explicit `receipt.status` check; the chain does not auto-throw on revert
+    - **Rate limiting** — all API endpoints are rate-limited (express-rate-limit)
+    - **Input sanitization** — amount strings are length-capped; addresses validated with `isAddress`; tx hashes validated against a strict hex regex
+    - **HTTP security headers** — `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` on all responses
+    - **Content-Type enforcement** — POST routes return 415 for non-JSON bodies
+    - **Error masking** — production errors return a generic message; full details are server-logged only
+    - **Address redaction** — global swap history shows truncated addresses (`0xABCD…1234`) to limit on-chain identity correlation
   ---
 
   ## Stack
